@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import MessageItem from '../components/MessageItem';
 import ChatInput from '../components/ChatInput';
 import LoadingBubble from '../components/LoadingBubble';
+import { SpeechRecognitionService, TextToSpeechService } from '../utils/speech';
 
 /**
  * Automatically detects the language of a string based on unicode ranges.
@@ -58,14 +59,27 @@ export default function ChatPage() {
   const [spokenLanguage, setSpokenLanguage] = useState(user?.preferredLanguage || 'en-US');
 
   const messagesEndRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const transcriptRef = useRef('');
-  const shouldSendOnEndRef = useRef(true);
-  const audioRef = useRef(null);
+  const recognitionServiceRef = useRef(null);
+  const ttsServiceRef = useRef(null);
 
   // Load chat history from backend on mount
   useEffect(() => {
     loadHistory();
+  }, []);
+
+  // Initialize Speech Services on mount
+  useEffect(() => {
+    recognitionServiceRef.current = new SpeechRecognitionService({ lang: spokenLanguage });
+    ttsServiceRef.current = new TextToSpeechService();
+
+    return () => {
+      if (ttsServiceRef.current) {
+        ttsServiceRef.current.cancel();
+      }
+      if (recognitionServiceRef.current) {
+        recognitionServiceRef.current.stop();
+      }
+    };
   }, []);
 
   // Update spoken language if user preference changes
@@ -75,22 +89,12 @@ export default function ChatPage() {
     }
   }, [user]);
 
-  // Clean up Speech on unmount
+  // Sync spoken language changes to recognition service
   useEffect(() => {
-    return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) { }
-      }
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-    };
-  }, []);
+    if (recognitionServiceRef.current) {
+      recognitionServiceRef.current.setLanguage(spokenLanguage);
+    }
+  }, [spokenLanguage]);
 
   const loadHistory = async () => {
     setError(null);
@@ -123,89 +127,31 @@ export default function ChatPage() {
   };
 
   const stopSpeaking = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (ttsServiceRef.current) {
+      ttsServiceRef.current.cancel();
     }
     setIsSpeaking(false);
   };
 
   const speakText = (text) => {
-    stopSpeaking();
-    if (!text) return;
-
-    const lang = detectLanguage(text);
-    const langCode = lang.split('-')[0];
-
-    try {
-      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${langCode}&client=tw-ob&q=${encodeURIComponent(text)}`;
-      const audio = new Audio(ttsUrl);
-
-      audio.onplay = () => {
-        setIsSpeaking(true);
-      };
-
-      audio.onended = () => {
+    if (!ttsServiceRef.current) return;
+    setIsSpeaking(true);
+    ttsServiceRef.current.speak(text, {
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => setIsSpeaking(false),
+      onError: (e) => {
         setIsSpeaking(false);
-      };
-
-      audio.onerror = (e) => {
-        console.error('Cloud TTS playing failed, falling back to local SpeechSynthesis:', e);
-        fallbackSpeakText(text, lang);
-      };
-
-      audioRef.current = audio;
-      audio.play().catch(err => {
-        console.error('Audio play failed, falling back to local SpeechSynthesis:', err);
-        fallbackSpeakText(text, lang);
-      });
-    } catch (err) {
-      console.error('Failed to initialize Audio, falling back to local SpeechSynthesis:', err);
-      fallbackSpeakText(text, lang);
-    }
-  };
-
-  const fallbackSpeakText = (text, lang) => {
-    if (!('speechSynthesis' in window)) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-
-    const voices = window.speechSynthesis.getVoices();
-    const matchedVoice = voices.find(v => v.lang.startsWith(lang));
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
-
-    utterance.onerror = (e) => {
-      console.error('Fallback SpeechSynthesis error:', e);
-      setIsSpeaking(false);
-      if (e.error === 'language-unavailable') {
-        setError('Voice output is unavailable because no matching TTS voice pack is installed on your operating system.');
-      } else {
-        setError(`Voice output failed: ${e.error || 'Unknown voice synthesis error'}. Please check your system settings.`);
+        if (e.error === 'language-unavailable') {
+          setError('Voice output is unavailable because no matching TTS voice pack is installed on your operating system.');
+        } else {
+          setError(`Voice output failed: ${e.error || 'Unknown voice synthesis error'}. Please check your system settings.`);
+        }
       }
-    };
-
-    window.speechSynthesis.speak(utterance);
+    });
   };
 
   const startListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Browser does not support speech recognition.');
-      return;
-    }
+    if (!recognitionServiceRef.current) return;
 
     stopSpeaking();
 
@@ -214,68 +160,43 @@ export default function ChatPage() {
       return;
     }
 
-    transcriptRef.current = '';
-    shouldSendOnEndRef.current = true;
+    setError(null);
+    let finalSpeechText = '';
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = spokenLanguage;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setError(null);
-    };
-
-    recognition.onresult = (event) => {
-      let fullTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        fullTranscript += event.results[i][0].transcript;
-      }
-      transcriptRef.current = fullTranscript.trim();
-      setInput(fullTranscript.trim());
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-
-      if (event.error === 'not-allowed') {
-        setError('Microphone permission denied. Please allow microphone access in your browser settings.');
-      } else if (event.error === 'no-speech') {
-        setError('No speech was detected. Please try again.');
-      } else {
-        setError(`Speech recognition error: ${event.error}`);
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-
-      if (shouldSendOnEndRef.current) {
-        const finalSpeech = transcriptRef.current;
-        if (finalSpeech && finalSpeech.trim()) {
-          handleSend(finalSpeech);
+    recognitionServiceRef.current.start({
+      onStart: () => {
+        setIsListening(true);
+      },
+      onResult: (transcript) => {
+        finalSpeechText = transcript;
+        setInput(transcript);
+      },
+      onError: (errorType) => {
+        setIsListening(false);
+        if (errorType === 'permission-denied') {
+          setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+        } else if (errorType === 'no-speech') {
+          setError('No speech was detected. Please try again.');
+        } else if (errorType === 'timeout') {
+          setError('Speech recognition timed out. Please try speaking again.');
+        } else if (errorType === 'unsupported-browser') {
+          setError('Your browser does not support Speech Recognition. Please try using Google Chrome.');
+        } else {
+          setError(`Speech recognition error: ${errorType}`);
+        }
+      },
+      onEnd: () => {
+        setIsListening(false);
+        if (finalSpeechText && finalSpeechText.trim()) {
+          handleSend(finalSpeechText);
         }
       }
-      transcriptRef.current = '';
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch (e) {
-      console.error('Failed to start speech recognition:', e);
-    }
+    });
   };
 
   const stopListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        console.error('Failed to stop speech recognition:', e);
-      }
+    if (recognitionServiceRef.current) {
+      recognitionServiceRef.current.stop();
       setIsListening(false);
     }
   };
@@ -346,7 +267,6 @@ export default function ChatPage() {
     const messageText = textToSend || input;
     if (!messageText.trim() || isLoading) return;
 
-    shouldSendOnEndRef.current = false;
     stopSpeaking();
     stopListening();
 
@@ -691,8 +611,34 @@ export default function ChatPage() {
                 <option value="ta-IN">தமிழ் (Tamil)</option>
               </select>
             </div>
+          </div>
 
-            {(isListening || isSpeaking) && (
+          {(isListening || isSpeaking) && (
+            <div className="voice-controls-bar">
+              <div className="voice-status-group">
+                {isListening && (
+                  <div className="voice-status-indicator listening">
+                    <div className="voice-wave">
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                    </div>
+                    <span>Listening...</span>
+                  </div>
+                )}
+                {isSpeaking && (
+                  <div className="voice-status-indicator speaking">
+                    <div className="voice-wave">
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                      <div className="voice-wave-bar"></div>
+                    </div>
+                    <span>Speaking response...</span>
+                  </div>
+                )}
+              </div>
               <div className="voice-actions">
                 {isSpeaking && (
                   <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
@@ -705,8 +651,8 @@ export default function ChatPage() {
                   <span>Restart Listening</span>
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <ChatInput
             value={input}

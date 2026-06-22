@@ -44,9 +44,9 @@ export default function ChatInput({ value, onChange, onSubmit, isLoading, isList
         className={`mic-button ${isListening ? 'listening' : ''}`}
         disabled={isLoading}
         aria-label={isListening ? "Stop listening" : "Start listening"}
-        title={isListening ? "Stop listening" : "Start listening"}
+        title={isListening ? "Listening..." : "Start listening"}
       >
-        {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+        <Mic size={18} />
       </button>
       <button
         type="submit"
