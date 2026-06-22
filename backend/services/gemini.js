@@ -75,6 +75,13 @@ Assistant:
     return response.text().trim();
   } catch (error) {
     console.error("Gemini Error:", error);
+    try {
+      const fs = await import('fs');
+      const logMessage = `[${new Date().toISOString()}] GEMINI API ERROR: ${error.message}\nSTACK: ${error.stack}\n\n`;
+      fs.appendFileSync('error.log', logMessage);
+    } catch (fsErr) {
+      console.error('Failed to write to error.log:', fsErr);
+    }
     throw new Error(
       "Failed to generate response from AI assistant."
     );

@@ -60,6 +60,15 @@ export const generateAndSaveChat = async (req, res) => {
   } catch (error) {
     console.error('Error generating and saving chat:', error.message);
 
+    // Log the error stack to a local file for diagnosis
+    try {
+      const fs = await import('fs');
+      const logMessage = `[${new Date().toISOString()}] ERROR: ${error.message}\nSTACK: ${error.stack}\n\n`;
+      fs.appendFileSync('error.log', logMessage);
+    } catch (fsErr) {
+      console.error('Failed to write to error.log:', fsErr);
+    }
+
     if (error.message.includes('API key')) {
       return res.status(500).json({
         success: false,

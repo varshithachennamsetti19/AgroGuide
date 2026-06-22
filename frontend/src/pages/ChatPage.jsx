@@ -57,10 +57,19 @@ export default function ChatPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   // Initialize with user's preferred language from auth context
   const [spokenLanguage, setSpokenLanguage] = useState(user?.preferredLanguage || 'en-US');
+  // Mode selection state: 'hybrid' (text + voice) or 'voice' (voice only)
+  const [assistantMode, setAssistantMode] = useState(() => {
+    return localStorage.getItem('agroguide_assistant_mode') || 'hybrid';
+  });
 
   const messagesEndRef = useRef(null);
   const recognitionServiceRef = useRef(null);
   const ttsServiceRef = useRef(null);
+
+  // Sync mode changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('agroguide_assistant_mode', assistantMode);
+  }, [assistantMode]);
 
   // Load chat history from backend on mount
   useEffect(() => {
@@ -499,9 +508,22 @@ export default function ChatPage() {
               <h1>{selectedChatId ? 'Conversation Details' : 'AgroGuide Farmer Assistant'}</h1>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Language: <strong style={{ color: 'var(--accent-cyan)' }}>{getLanguageLabel(spokenLanguage)}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div className="mode-toggle-group">
+              <button 
+                onClick={() => setAssistantMode('hybrid')} 
+                className={`mode-toggle-btn ${assistantMode === 'hybrid' ? 'active' : ''}`}
+                title="Text + Speech Mode"
+              >
+                Text + Speech
+              </button>
+              <button 
+                onClick={() => setAssistantMode('voice')} 
+                className={`mode-toggle-btn ${assistantMode === 'voice' ? 'active' : ''}`}
+                title="Voice Only Mode"
+              >
+                Voice Only
+              </button>
             </div>
             <div className="status-badge">
               <span className="status-dot"></span>
@@ -538,62 +560,148 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="messages-container">
-          {displayMessages.length === 0 ? (
-            <section className="welcome-screen">
-              <div className="welcome-logo">
-                <Bot size={60} />
+        {assistantMode === 'voice' ? (
+          <section className="voice-only-screen">
+            <div className="voice-only-avatar-container">
+              <div 
+                className={`voice-only-avatar ${isListening ? 'listening' : ''} ${isSpeaking ? 'speaking' : ''}`}
+                onClick={isListening ? stopListening : startListening}
+                style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
+              >
+                <Bot size={70} />
               </div>
-              <h2 className="welcome-title">Namaste, {user?.name}! How can I assist you today?</h2>
-              <p className="welcome-subtitle">
-                I am your AI farming assistant. Ask me questions about crops, pests, fertilizers, crop rotations, or weather. You can speak to me in Telugu, Hindi, Tamil, or English!
-              </p>
-
-              <div className="suggestions-grid">
-                {suggestions.map((sug, idx) => (
-                  <div
-                    key={idx}
-                    className="suggestion-card"
-                    onClick={() => handleSend(sug.text)}
-                  >
-                    <div className="suggestion-card-title">{sug.title}</div>
-                    <div className="suggestion-card-desc">{sug.desc}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : (
-            <>
-              {displayMessages.map(msg => (
-                <MessageItem key={msg.id} message={msg} />
-              ))}
-              {isLoading && <LoadingBubble />}
-
-              {error && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  margin: '12px 0',
-                  color: '#ef4444',
-                  fontSize: '0.9rem',
-                  maxWidth: '70%',
-                  alignSelf: 'center'
-                }}>
-                  <AlertCircle size={20} style={{ flexShrink: 0 }} />
-                  <div>
-                    <strong>System Error:</strong> {error}
-                  </div>
+            </div>
+            <h2 className="voice-only-title">
+              {isListening ? "Listening..." : isSpeaking ? "Speaking Response..." : "Tap Bot & Ask AgroGuide"}
+            </h2>
+            <p className="voice-only-subtitle">
+              {isListening 
+                ? "Speak now. AgroGuide will automatically send when you finish speaking." 
+                : isSpeaking 
+                  ? "Listen to the response out loud." 
+                  : `Your assistant is ready. Switch language below or tap the bot to speak in ${getLanguageLabel(spokenLanguage)}.`}
+            </p>
+            
+            {(isListening || isSpeaking) && (
+              <div className="voice-controls-bar" style={{ width: '100%', maxWidth: '380px', margin: '0 auto 12px auto' }}>
+                <div className="voice-status-group">
+                  {isListening && (
+                    <div className="voice-status-indicator listening">
+                      <div className="voice-wave">
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                      </div>
+                      <span>Listening...</span>
+                    </div>
+                  )}
+                  {isSpeaking && (
+                    <div className="voice-status-indicator speaking">
+                      <div className="voice-wave">
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                        <div className="voice-wave-bar"></div>
+                      </div>
+                      <span>Speaking...</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                <div className="voice-actions">
+                  {isSpeaking && (
+                    <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
+                      <VolumeX size={12} />
+                    </button>
+                  )}
+                  <button onClick={restartListening} className="voice-btn" title="Restart Listening">
+                    <RefreshCw size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isLoading && <LoadingBubble />}
+
+            {error && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: '12px',
+                padding: '16px',
+                margin: '12px auto',
+                color: '#ef4444',
+                fontSize: '0.9rem',
+                maxWidth: '400px'
+              }}>
+                <AlertCircle size={20} style={{ flexShrink: 0 }} />
+                <div style={{ textAlign: 'left' }}>
+                  <strong>System Error:</strong> {error}
+                </div>
+              </div>
+            )}
+          </section>
+        ) : (
+          <div className="messages-container">
+            {displayMessages.length === 0 ? (
+              <section className="welcome-screen">
+                <div className="welcome-logo">
+                  <Bot size={60} />
+                </div>
+                <h2 className="welcome-title">Namaste, {user?.name}! How can I assist you today?</h2>
+                <p className="welcome-subtitle">
+                  I am your AI farming assistant. Ask me questions about crops, pests, fertilizers, crop rotations, or weather. You can speak to me in Telugu, Hindi, Tamil, or English!
+                </p>
+
+                <div className="suggestions-grid">
+                  {suggestions.map((sug, idx) => (
+                    <div
+                      key={idx}
+                      className="suggestion-card"
+                      onClick={() => handleSend(sug.text)}
+                    >
+                      <div className="suggestion-card-title">{sug.title}</div>
+                      <div className="suggestion-card-desc">{sug.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <>
+                {displayMessages.map(msg => (
+                  <MessageItem key={msg.id} message={msg} />
+                ))}
+                {isLoading && <LoadingBubble />}
+
+                {error && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    margin: '12px 0',
+                    color: '#ef4444',
+                    fontSize: '0.9rem',
+                    maxWidth: '70%',
+                    alignSelf: 'center'
+                  }}>
+                    <AlertCircle size={20} style={{ flexShrink: 0 }} />
+                    <div>
+                      <strong>System Error:</strong> {error}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
 
         <div className="input-container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', maxWidth: '800px', margin: '0 auto 8px auto' }}>
@@ -613,55 +721,59 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {(isListening || isSpeaking) && (
-            <div className="voice-controls-bar">
-              <div className="voice-status-group">
-                {isListening && (
-                  <div className="voice-status-indicator listening">
-                    <div className="voice-wave">
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                    </div>
-                    <span>Listening...</span>
+          {assistantMode === 'hybrid' && (
+            <>
+              {(isListening || isSpeaking) && (
+                <div className="voice-controls-bar">
+                  <div className="voice-status-group">
+                    {isListening && (
+                      <div className="voice-status-indicator listening">
+                        <div className="voice-wave">
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                        </div>
+                        <span>Listening...</span>
+                      </div>
+                    )}
+                    {isSpeaking && (
+                      <div className="voice-status-indicator speaking">
+                        <div className="voice-wave">
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                          <div className="voice-wave-bar"></div>
+                        </div>
+                        <span>Speaking response...</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {isSpeaking && (
-                  <div className="voice-status-indicator speaking">
-                    <div className="voice-wave">
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                      <div className="voice-wave-bar"></div>
-                    </div>
-                    <span>Speaking response...</span>
+                  <div className="voice-actions">
+                    {isSpeaking && (
+                      <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
+                        <VolumeX size={12} />
+                        <span>Stop Speaking</span>
+                      </button>
+                    )}
+                    <button onClick={restartListening} className="voice-btn" title="Restart Listening">
+                      <RefreshCw size={12} />
+                      <span>Restart Listening</span>
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="voice-actions">
-                {isSpeaking && (
-                  <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
-                    <VolumeX size={12} />
-                    <span>Stop Speaking</span>
-                  </button>
-                )}
-                <button onClick={restartListening} className="voice-btn" title="Restart Listening">
-                  <RefreshCw size={12} />
-                  <span>Restart Listening</span>
-                </button>
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          <ChatInput
-            value={input}
-            onChange={setInput}
-            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-            isLoading={isLoading}
-            isListening={isListening}
-            onMicClick={startListening}
-          />
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+                isLoading={isLoading}
+                isListening={isListening}
+                onMicClick={startListening}
+              />
+            </>
+          )}
         </div>
       </main>
     </div>
