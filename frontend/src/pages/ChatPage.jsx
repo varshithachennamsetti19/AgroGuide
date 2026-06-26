@@ -358,10 +358,10 @@ export default function ChatPage() {
   };
 
   const suggestions = [
-    { title: 'Crop Protection', desc: 'Ask about pests: "How to treat cotton leaf spots?"', text: 'How to treat cotton leaf spots?' },
-    { title: 'Telugu Assistance', desc: 'వ్యవసాయం: "వరి పంటను ఆశించే తెగుళ్లు ఏమిటి?"', text: 'వరి పంటను ఆశించే తెగుళ్లు ఏమిటి?' },
-    { title: 'Hindi Assistance', desc: 'फसल चक्र: "गेहूं के साथ कौन सी फसलें उगाएं?"', text: 'गेहूं के साथ कौन सी फसलें उगाएं?' },
-    { title: 'Tamil Assistance', desc: 'உரம்: "நெல் பயிருக்கு இயற்கை உரம் தயாரிப்பது எப்படி?"', text: 'நெல் பயிருக்கு இயற்கை உரம் தயாரிப்பது எப்படி?' }
+    { title: '🌾 Crop Advisory', desc: 'Get tips for Rice, Cotton, Tomato cultivation...', text: 'Rice cultivation tips' },
+    { title: '🏛 Government Schemes', desc: 'Find details about PM Kisan, Fasal Bima...', text: 'Tell me about PM Kisan' },
+    { title: '🌦 Weather Forecast', desc: 'Check weather advisories for crops...', text: 'What is the weather forecast for my crops?' },
+    { title: '📞 Emergency Help', desc: 'Contact crop protection emergency services...', text: 'How can I contact crop protection emergency help?' }
   ];
 
   // Helper to get active messages to display

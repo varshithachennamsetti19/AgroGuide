@@ -1,0 +1,32 @@
+[
+  {
+    "crop": "Rice",
+    "category": "Crop Advisory",
+    "content": "Rice Cultivation & Sowing: Rice is typically sown in nursery beds during the onset of monsoons (June-July) and then transplanted into flooded fields after 21-25 days. The ideal transplanting spacing is 20x15 cm. Key high-yielding varieties include IR64, Jaya, Swarna, and MTU 1010. Water Management: Rice requires standing water of 2-5 cm from transplanting until the dough stage (about 10-15 days before harvest). Alternate wetting and drying is recommended to save water. Harvesting: Harvest when 80% of grains in the panicle turn golden-yellow. Moisture content during harvesting should be 20-25%."
+  },
+  {
+    "crop": "Cotton",
+    "category": "Crop Advisory",
+    "content": "Cotton Climate and Soil: Cotton requires fertile black clayey soils (regur soils) with good drainage, temperatures of 21-30°C, and 50-100 cm rainfall. Pest Management: Cotton is highly susceptible to Pink Bollworm. Manage it by setting up pheromone traps (5 per acre), spraying Neem seed kernel extract (NSKE 5%), and applying recommended chemicals like spinosad or chlorantraniliprole if the economic threshold is crossed. Fertilizer Schedule: Apply Nitrogen, Phosphorus, and Potassium in the ratio of 120:60:60 kg/ha, with Nitrogen split into 3-4 top dressings."
+  },
+  {
+    "crop": "Maize",
+    "category": "Crop Advisory",
+    "content": "Maize Crop Cycle: Maize takes about 90 to 110 days to mature. Sowing is best done in mid-June to July (Kharif) or October-November (Rabi). Spacing: Ideal seed rate is 20 kg/ha. Spacing should be kept at 60 cm between rows and 20 cm between plants within a row. Weed Control: Apply Atrazine at 1.0 kg active ingredient per hectare within 3 days of sowing as a pre-emergence herbicide. Harvesting: Harvest when the cob sheath turns dry and papery, and grains show a black layer at the base (physiological maturity)."
+  },
+  {
+    "crop": "Groundnut",
+    "category": "Crop Advisory",
+    "content": "Groundnut Soil and Seed: Grows best in well-drained sandy loam or red loam soils with pH 6.0-7.5. Seed rate is 100-120 kg kernels/ha. Spacing: Spacing should be maintained at 30 cm between rows and 10 cm between plants. Irrigation: Groundnut is mostly rainfed, but critical crop growth stages for irrigation include flowering (20-35 days after sowing), pegging (40-60 days), and pod development (60-80 days). Ensure no moisture stress at pod development stage."
+  },
+  {
+    "crop": "Tomato",
+    "category": "Crop Advisory",
+    "content": "Tomato Sowing & Nursery: Tomato seeds are sown in raised nursery beds. Seedlings are ready for transplanting to main fields after 25-30 days of sowing. Maintain a spacing of 60x45 cm. Staking: Tall, indeterminate varieties must be staked using bamboo sticks and plastic threads to keep fruits off the ground. Pest Control: Fruit Borer is a major pest. Handpick larvae, grow marigold as a trap crop (1 row of marigold for every 16 rows of tomato), and spray Bacillus thuringiensis (Bt) or indoxacarb."
+  },
+  {
+    "crop": "Sugarcane",
+    "category": "Crop Advisory",
+    "content": "Sugarcane Duration & Soil: Sugarcane is a long-duration crop taking 10 to 12 months to mature. Grows best in deep rich loamy soils with good drainage. Setts Preparation: Use healthy sugarcane setts with 2-3 buds from a 10-month-old crop. Treat setts with Carbendazim (0.1%) to prevent red rot disease. Irrigation Methods: Requires high watering (200-250 cm). Furrow irrigation or drip irrigation is recommended to optimize water use efficiency."
+  }
+]

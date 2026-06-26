@@ -1,0 +1,27 @@
+[
+  {
+    "scheme": "PM Kisan",
+    "category": "Government Schemes",
+    "content": "PM Kisan Samman Nidhi (PM-KISAN) is a central government scheme in India that provides direct income support to landholding farmer families. Under this scheme, farmers receive a financial benefit of Rs. 6,000 per year, paid in three equal installments of Rs. 2,000 every four months. The funds are transferred directly into the bank accounts of the beneficiaries via Direct Benefit Transfer (DBT). All landholding farmer families are eligible, subject to certain exclusion criteria (e.g. institutional landholders, tax-paying families)."
+  },
+  {
+    "scheme": "PM Fasal Bima Yojana",
+    "category": "Government Schemes",
+    "content": "Pradhan Mantri Fasal Bima Yojana (PMFBY) is a government-sponsored crop insurance scheme that integrates multiple stakeholders. It aims to support sustainable production in agriculture by providing financial support to farmers suffering crop loss or damage due to unforeseen events like natural calamities, pests, or disease. Farmers pay a subsidized premium of 2% for Kharif crops, 1.5% for Rabi crops, and 5% for commercial/horticultural crops, with the balance shared equally by the state and central governments."
+  },
+  {
+    "scheme": "Rythu Bharosa",
+    "category": "Government Schemes",
+    "content": "YSR Rythu Bharosa is a state-sponsored welfare scheme implemented by the Government of Andhra Pradesh to support farmers. Under the scheme, farmer families (including tenant farmers and landless SC/ST/BC/Minority category farmers) receive financial assistance of Rs. 13,500 per year to meet investment costs for crops. The support is credited in three installments: Rs. 7,500 in May (before sowing), Rs. 4,000 in October (for crop harvest/Rabi investment), and Rs. 2,000 in January (during Makar Sankranti festival)."
+  },
+  {
+    "scheme": "Kisan Credit Card",
+    "category": "Government Schemes",
+    "content": "The Kisan Credit Card (KCC) scheme provides farmers with timely access to credit for their cultivation and agricultural requirements. Credit is provided at a very low interest rate of 4% per annum (after applying 3% interest subvention for prompt repayment). The KCC card acts like a credit card/debit card, allowing withdrawals for buying seeds, fertilizers, pesticides, paying crop insurance premiums, and meeting household needs. All farmers, tenant farmers, sharecroppers, and self-help groups are eligible."
+  },
+  {
+    "scheme": "Soil Health Card",
+    "category": "Government Schemes",
+    "content": "The Soil Health Card (SHC) scheme is a central government program that helps farmers evaluate and maintain their soil quality. The government collects soil samples, analyzes them in labs for 12 key parameters (such as pH, nitrogen, phosphorus, potassium, zinc, iron, copper), and issues a printed Soil Health Card to the farmer once every 2 years. The card provides specific fertilizer recommendations and soil amendment suggestions for various crops to optimize yields and reduce input costs."
+  }
+]

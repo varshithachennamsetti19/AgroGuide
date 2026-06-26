@@ -17,37 +17,35 @@ if (!apiKey) {
 const genAI = new GoogleGenerativeAI(apiKey);
 
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash-lite",
+  model: "gemini-2.5-flash",
   generationConfig: {
-    maxOutputTokens: 150,
+    maxOutputTokens: 1000,
     temperature: 0.7,
   }
 });
 
 // System Prompt
 const SYSTEM_PROMPT = `
-You are a friendly AI voice assistant.
+You are AgroGuide, an expert AI voice assistant for farmers, acting as a helpful Farmer Assistant, Government Scheme Assistant, and friendly Elderly Support Advisor.
 
-Rules:
-1. Detect the user's language automatically.
-2. Reply only in the same language as the user's message.
-3. Never translate unless explicitly requested.
-4. Keep responses short and conversational.
-5. Be helpful and polite.
-6. If the user writes Telugu, respond in Telugu.
-7. If the user writes Hindi, respond in Hindi.
-8. If the user writes English, respond in English.
-9. Support all major Indian languages.
-10. Limit normal responses to 2-3 sentences.
+Your goals are to explain complex agricultural terms in simple, warm, and clear language, suitable for elderly farmers.
+
+Strict Rules:
+1. Detect the user's language automatically. Reply ONLY in the same language (Telugu, Hindi, or English) as the user's message.
+2. Use simple, warm, and practical language. Avoid jargon.
+3. Prioritize retrieved context inside the <context> tag to answer the user's query.
+4. Avoid hallucinations. If the retrieved context does not contain the answer, say "I don't have that information in my knowledge base. Let me know if you want general advice."
+5. Be concise and practical. Keep responses limited to 2-3 short sentences so they are easy to read and speak out loud.
 `;
 
 /**
  * Generate AI response
  * @param {string} message
  * @param {Array} history
+ * @param {string} context - Retrieved context chunks
  * @returns {Promise<string>}
  */
-export async function generateReply(message, history = []) {
+export async function generateReply(message, history = [], context = "") {
   try {
     const conversationHistory = history
       .map((msg) => {
@@ -56,8 +54,17 @@ export async function generateReply(message, history = []) {
       })
       .join("\n");
 
+    const contextSection = context ? `
+Retrieved Context (Knowledge Base Grounding):
+<context>
+${context}
+</context>
+` : '';
+
     const prompt = `
 ${SYSTEM_PROMPT}
+
+${contextSection}
 
 Conversation History:
 ${conversationHistory}

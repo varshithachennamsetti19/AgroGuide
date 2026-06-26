@@ -5,12 +5,16 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import chatRouter from './routes/chat.js';
 import authRouter from './routes/auth.js';
+import { initializeRetriever } from './rag/retriever.js';
 
 // Load environment variables
 dotenv.config();
 
 // Connect to MongoDB Atlas
 connectDB();
+
+// Initialize Local RAG Vector Store
+initializeRetriever();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

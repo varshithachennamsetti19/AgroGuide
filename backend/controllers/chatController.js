@@ -1,5 +1,7 @@
 import { generateReply } from '../services/gemini.js';
 import Chat from '../models/Chat.js';
+import { detectIntent } from '../services/intentRouter.js';
+import { retrieve } from '../rag/retriever.js';
 
 // Helper to detect language for saving to DB
 const detectLanguage = (text) => {
@@ -37,8 +39,21 @@ export const generateAndSaveChat = async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // Generate reply using Gemini service
-    const reply = await generateReply(message, history);
+    // Detect intent of the query
+    const intent = await detectIntent(message);
+    
+    // Retrieve context for Scheme, Crop, or Weather intents
+    let context = "";
+    if (intent === 'SCHEME_QUERY' || intent === 'CROP_QUERY' || intent === 'WEATHER_QUERY') {
+      const retrievedChunks = await retrieve(message, 3);
+      if (retrievedChunks && retrievedChunks.length > 0) {
+        context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
+        console.log(`[RAG Context retrieved from ${retrievedChunks.length} chunks]`);
+      }
+    }
+
+    // Generate reply using Gemini service with context
+    const reply = await generateReply(message, history, context);
     console.log(`[${new Date().toISOString()}] Response generated in ${Date.now() - startTime}ms`);
 
     // Detect language of the query
