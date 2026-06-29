@@ -45,6 +45,24 @@ export function loadDocuments() {
       console.warn('schemes.json not found at', schemesPath);
     }
 
+    // Load Seasonal Weather Data
+    const seasonalPath = path.resolve('data/seasonal_weather.json');
+    if (fs.existsSync(seasonalPath)) {
+      const seasonalData = JSON.parse(fs.readFileSync(seasonalPath, 'utf8'));
+      seasonalData.forEach(item => {
+        documents.push({
+          text: item.content,
+          metadata: {
+            title: item.state,
+            category: item.category,
+            source: 'seasonal_weather.json'
+          }
+        });
+      });
+    } else {
+      console.warn('seasonal_weather.json not found at', seasonalPath);
+    }
+
     // Also look in backend/documents/ for custom .txt files if any exist
     const docsDir = path.resolve('documents');
     if (fs.existsSync(docsDir)) {

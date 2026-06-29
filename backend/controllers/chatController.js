@@ -1,7 +1,9 @@
-import { generateReply } from '../services/gemini.js';
+import { generateReply, generateWeatherSummary } from '../services/gemini.js';
 import Chat from '../models/Chat.js';
-import { detectIntent } from '../services/intentRouter.js';
+import { detectIntent, extractCity, detectQueryTime, isSeasonalQuery, extractState } from '../services/intentRouter.js';
 import { retrieve } from '../rag/retriever.js';
+import { fetchCurrentWeather, fetchWeatherForecast } from '../services/weatherService.js';
+import WeatherHistory from '../models/WeatherHistory.js';
 
 // Helper to detect language for saving to DB
 const detectLanguage = (text) => {
@@ -37,14 +39,179 @@ export const generateAndSaveChat = async (req, res) => {
 
   console.log(`[${new Date().toISOString()}] Incoming chat request from User ${userId}: "${message}"`);
   const startTime = Date.now();
+  const language = detectLanguage(message);
 
   try {
     // Detect intent of the query
-    const intent = await detectIntent(message);
+    let intent = await detectIntent(message);
+    const hasState = extractState(message);
+    const isStateOnly = hasState && message.split(/\s+/).length <= 4;
     
-    // Retrieve context for Scheme, Crop, or Weather intents
+    // Check if the user is replying with a state name in response to a seasonal weather prompt
+    if (isStateOnly && history && history.length > 0) {
+      const lastAIMsg = history[history.length - 1];
+      const lastMsgText = lastAIMsg.text || lastAIMsg.message || "";
+      const isLastMsgPrompt = lastAIMsg.role === 'model' && (
+        lastMsgText.includes('రాష్ట్రం') || 
+        lastMsgText.includes('राज्य') || 
+        lastMsgText.includes('State') ||
+        lastMsgText.includes('region')
+      );
+      if (isLastMsgPrompt) {
+        intent = 'WEATHER_QUERY';
+      }
+    }
+    
+    // 1. WEATHER INTENT HANDLING FLOW
+    if (intent === 'WEATHER_QUERY') {
+      const isSeasonal = isSeasonalQuery(message) || (isStateOnly && history && history.length > 0);
+
+      // Handle seasonal / yearly / monsoon rainfall forecast queries
+      if (isSeasonal) {
+        const state = extractState(message);
+        
+        // Case A: State is missing - Prompt the user in their language
+        if (!state) {
+          let reply = 'Which State or region would you like the yearly rain forecast for?';
+          if (language === 'te-IN') {
+            reply = 'ఈ సంవత్సర వర్షపాత వివరాల కోసం దయచేసి మీ రాష్ట్రం పేరు చెప్పండి?';
+          } else if (language === 'hi-IN') {
+            reply = 'इस साल की बारिश की जानकारी के लिए कृपया अपने राज्य का नाम बताएं?';
+          }
+          
+          console.log(`[Seasonal Weather Query] Missing state. Prompting user: "${reply}"`);
+          
+          const savedChat = await Chat.create({
+            userId,
+            question: message,
+            answer: reply,
+            language
+          });
+
+          return res.status(200).json({
+            success: true,
+            reply,
+            chat: savedChat,
+            promptForState: true
+          });
+        }
+
+        // Case B: State is present - Query RAG for state-level seasonal report
+        console.log(`[Seasonal Weather Query] State: "${state}"`);
+        const retrievedChunks = await retrieve(state + " seasonal rainfall monsoon forecast", 2);
+        
+        let context = "";
+        if (retrievedChunks && retrievedChunks.length > 0) {
+          context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
+        } else {
+          // If no RAG data found, provide fallback context about state
+          context = `Monsoon Forecast Report for ${state}: Expect normal to above-normal monsoon rain for 2026. Advise crop planning according to state irrigation guides.`;
+        }
+
+        // Prepend specific guidance for Gemini
+        const augmentedContext = `You are discussing the seasonal rainfall forecast for ${state}. Ground your reply in this data:\n${context}`;
+
+        const reply = await generateReply(message, history, augmentedContext);
+        console.log(`[Seasonal Weather Query] Gemini response generated in ${Date.now() - startTime}ms`);
+
+        // Save to main Chat history
+        const savedChat = await Chat.create({
+          userId,
+          question: message,
+          answer: reply,
+          language
+        });
+
+        return res.status(200).json({
+          success: true,
+          reply,
+          chat: savedChat
+        });
+      }
+
+      // Standard City Weather Flow
+      const city = extractCity(message);
+      
+      // Case A: City is missing - Prompt the user in their language
+      if (!city) {
+        let reply = 'Which city would you like the weather for?';
+        if (language === 'te-IN') {
+          reply = 'మీరు ఏ నగరం వాతావరణం తెలుసుకోవాలనుకుంటున్నారు?';
+        } else if (language === 'hi-IN') {
+          reply = 'आप किस शहर का मौसम जानना चाहते हैं?';
+        }
+        
+        console.log(`[Weather Query] Missing city. Prompting user: "${reply}"`);
+        
+        const savedChat = await Chat.create({
+          userId,
+          question: message,
+          answer: reply,
+          language
+        });
+
+        return res.status(200).json({
+          success: true,
+          reply,
+          chat: savedChat,
+          promptForCity: true
+        });
+      }
+
+      // Case B: City is present - Fetch weather & summarize
+      const queryType = detectQueryTime(message);
+      console.log(`[Weather Query] City: "${city}", Type: "${queryType}"`);
+      
+      let weatherData;
+      if (queryType === 'forecast') {
+        weatherData = await fetchWeatherForecast(city);
+      } else {
+        weatherData = await fetchCurrentWeather(city);
+      }
+
+      // Generate farmer-friendly explanation via Gemini
+      const reply = await generateWeatherSummary(weatherData, queryType, language);
+      console.log(`[Weather Query] Gemini summary generated in ${Date.now() - startTime}ms`);
+
+      // Save record to WeatherHistory schema
+      let tempToSave = 0;
+      let condToSave = 'Clear';
+      if (queryType === 'forecast') {
+        tempToSave = weatherData.forecast[0]?.temperature || 0;
+        condToSave = weatherData.forecast[0]?.weatherCondition || 'Clear';
+      } else {
+        tempToSave = weatherData.temperature;
+        condToSave = weatherData.weatherCondition;
+      }
+
+      await WeatherHistory.create({
+        userId,
+        city: weatherData.city,
+        temperature: tempToSave,
+        weatherCondition: condToSave
+      });
+
+      // Save to main Chat history with embedded weather metadata
+      const savedChat = await Chat.create({
+        userId,
+        question: message,
+        answer: reply,
+        language,
+        weatherData // embed raw weather data in chat
+      });
+
+      return res.status(200).json({
+        success: true,
+        reply,
+        chat: savedChat,
+        weatherData
+      });
+    }
+
+    // 2. STANDARD CROP/SCHEME/GENERAL FLOW
+    // Retrieve context for Scheme or Crop intents
     let context = "";
-    if (intent === 'SCHEME_QUERY' || intent === 'CROP_QUERY' || intent === 'WEATHER_QUERY') {
+    if (intent === 'SCHEME_QUERY' || intent === 'CROP_QUERY') {
       const retrievedChunks = await retrieve(message, 3);
       if (retrievedChunks && retrievedChunks.length > 0) {
         context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
@@ -55,9 +222,6 @@ export const generateAndSaveChat = async (req, res) => {
     // Generate reply using Gemini service with context
     const reply = await generateReply(message, history, context);
     console.log(`[${new Date().toISOString()}] Response generated in ${Date.now() - startTime}ms`);
-
-    // Detect language of the query
-    const language = detectLanguage(message);
 
     // Save chat to database
     const savedChat = await Chat.create({
@@ -82,6 +246,30 @@ export const generateAndSaveChat = async (req, res) => {
       fs.appendFileSync('error.log', logMessage);
     } catch (fsErr) {
       console.error('Failed to write to error.log:', fsErr);
+    }
+
+    // Handle invalid city names specifically (404)
+    if (error.statusCode === 404) {
+      const rawCity = extractCity(message) || 'requested';
+      let errReply = `I couldn't find the city "${rawCity}". Please check the spelling and try again.`;
+      if (language === 'te-IN') {
+        errReply = `నేను "${rawCity}" నగరాన్ని కనుగొనలేకపోయాను. దयచేసి స్పెల్లింగ్ సరిచూసుకొని మళ్ళీ ప్రయత్నించండి.`;
+      } else if (language === 'hi-IN') {
+        errReply = `मुझे "${rawCity}" शहर नहीं मिला। कृपया वर्तनी (spelling) की जाँच करें और पुन: प्रयास करें।`;
+      }
+
+      const savedChat = await Chat.create({
+        userId,
+        question: message,
+        answer: errReply,
+        language
+      });
+
+      return res.status(200).json({
+        success: true,
+        reply: errReply,
+        chat: savedChat
+      });
     }
 
     if (error.message.includes('API key')) {

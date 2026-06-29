@@ -1,10 +1,10 @@
 import React from 'react';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Sun, Cloud, CloudRain, Wind, Droplets, Eye, Sunrise, Sunset, Compass } from 'lucide-react';
 
 /**
  * MessageItem component renders a single chat bubble.
- * Aligns user messages to the right and assistant messages to the left
- * with themed icons and timestamps.
+ * Aligns user messages to the right and assistant messages to the left.
+ * If the response contains weatherData, it renders a beautiful glassmorphic Weather Card.
  */
 export default function MessageItem({ message }) {
   const isUser = message.role === 'user';
@@ -14,6 +14,27 @@ export default function MessageItem({ message }) {
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const weather = message.weatherData;
+  const isForecast = weather && Array.isArray(weather.forecast);
+
+  // Helper to resolve condition icons
+  const getWeatherIcon = (condition, size = 24) => {
+    const cond = (condition || '').toLowerCase();
+    if (cond.includes('rain') || cond.includes('drizzle') || cond.includes('storm') || cond.includes('thunder')) {
+      return <CloudRain size={size} style={{ color: 'hsl(200, 80%, 65%)' }} />;
+    }
+    if (cond.includes('cloud') || cond.includes('mist') || cond.includes('haze') || cond.includes('fog') || cond.includes('smoke')) {
+      return <Cloud size={size} style={{ color: 'hsl(215, 20%, 75%)' }} />;
+    }
+    return <Sun size={size} style={{ color: 'hsl(45, 90%, 55%)' }} />;
+  };
+
+  // Helper to format Unix timestamps to standard hour:minute format
+  const formatTime = (tsSeconds) => {
+    if (!tsSeconds) return '--:--';
+    return new Date(tsSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className={`message-row ${isUser ? 'user' : 'ai'}`}>
@@ -35,7 +56,125 @@ export default function MessageItem({ message }) {
           )}
           
           <div style={{ flex: 1, paddingTop: !isUser ? '3px' : '0', wordBreak: 'break-word' }}>
-            {message.text}
+            <div>{message.text}</div>
+
+            {/* RENDER WEATHER INTELLIGENCE CARD */}
+            {!isUser && weather && (
+              <div className="weather-card">
+                <div className="weather-header">
+                  <div className="weather-city-group">
+                    <span className="weather-city-name">{weather.city}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {isForecast ? '5-Day Agriculture Forecast' : 'Live Farming Weather'}
+                    </span>
+                  </div>
+                  <span className="weather-badge">
+                    {isForecast ? 'Forecast' : 'Current'}
+                  </span>
+                </div>
+
+                {isForecast ? (
+                  /* 5-DAY FORECAST VIEW */
+                  <div className="forecast-list">
+                    {weather.forecast.map((day, idx) => (
+                      <div key={idx} className="forecast-item">
+                        <span className="forecast-date">
+                          {new Date(day.date).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </span>
+                        <div className="forecast-cond">
+                          {getWeatherIcon(day.weatherCondition, 16)}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {day.weatherCondition}
+                          </span>
+                        </div>
+                        <span className="forecast-temp">{day.temperature}°C</span>
+                        <span className="forecast-pop" title="Rain probability">
+                          💧 {day.rainProbability}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* CURRENT WEATHER VIEW */
+                  <>
+                    <div className="weather-main-section">
+                      <div>
+                        <div className="weather-temp-display">
+                          <span className="weather-temp-num">{weather.temperature}</span>
+                          <span className="weather-temp-unit">°C</span>
+                        </div>
+                        <div className="weather-cond-text">{weather.weatherCondition}</div>
+                        <div className="weather-feels-like">Feels like {weather.feelsLike}°C</div>
+                      </div>
+                      <div style={{ paddingRight: '8px' }}>
+                        {getWeatherIcon(weather.weatherCondition, 56)}
+                      </div>
+                    </div>
+
+                    <div className="weather-metrics-grid">
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          <Droplets size={12} style={{ color: 'hsl(200, 80%, 65%)' }} />
+                          <span>Humidity</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.humidity}%</span>
+                      </div>
+                      
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          <Wind size={12} style={{ color: 'hsl(150, 70%, 55%)' }} />
+                          <span>Wind</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.windSpeed} m/s</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          <Compass size={12} style={{ color: 'hsl(280, 80%, 70%)' }} />
+                          <span>Pressure</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.pressure} hPa</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          <Eye size={12} style={{ color: 'hsl(30, 90%, 60%)' }} />
+                          <span>Visibility</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.visibility} km</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          <Cloud size={12} style={{ color: 'hsl(215, 20%, 65%)' }} />
+                          <span>Clouds</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.cloudCoverage}%</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          💧
+                          <span>Rainfall</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.rainfall} mm</span>
+                      </div>
+                    </div>
+
+                    <div className="weather-sun-row">
+                      <span className="weather-sun-time">
+                        <Sunrise size={14} style={{ color: 'hsl(45, 90%, 55%)' }} />
+                        <span>Sunrise: <strong>{formatTime(weather.sunrise)}</strong></span>
+                      </span>
+                      <span className="weather-sun-time">
+                        <Sunset size={14} style={{ color: 'hsl(20, 80%, 60%)' }} />
+                        <span>Sunset: <strong>{formatTime(weather.sunset)}</strong></span>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {isUser && (

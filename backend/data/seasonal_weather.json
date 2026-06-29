@@ -1,0 +1,37 @@
+[
+  {
+    "state": "Andhra Pradesh",
+    "category": "Seasonal Rainfall Report",
+    "content": "For the year 2026, Andhra Pradesh expects a normal to slightly above-normal monsoon season. Rainfall will onset in mid-June in Rayalaseema and progress into Coastal Andhra. Peak rainfall is predicted during July and August, which is ideal for sowing Rice and Groundnut. Farmers in low-lying delta areas should ensure drainage channels are clean to avoid waterlogging. Dry spells may occur in September, requiring supplementary micro-irrigation for Groundnut crops."
+  },
+  {
+    "state": "Telangana",
+    "category": "Seasonal Rainfall Report",
+    "content": "Telangana is projected to receive normal rainfall for the 2026 monsoon year. The rains are expected to set in by the second week of June, starting in southern districts like Mahabubnagar. July and August will see continuous rain showers, highly favorable for Cotton and Maize cultivation. Farmers are advised to complete sowing by late June. September rainfall is expected to be average, so harvesting of early-maturing crops should be planned carefully."
+  },
+  {
+    "state": "Maharashtra",
+    "category": "Seasonal Rainfall Report",
+    "content": "Maharashtra is predicted to experience above-normal monsoon rainfall in 2026, especially in Konkan and Vidarbha, while Madhya Maharashtra expects normal rain. Monsoon onset will hit the Konkan coast in early June and cover the state by late June. This is highly beneficial for Sugarcane, Cotton, and Soybean crops. Vidarbha cotton farmers should monitor soil moisture and prevent water stagnancy. Central region farmers should prepare for high intensity rain events in August."
+  },
+  {
+    "state": "Karnataka",
+    "category": "Seasonal Rainfall Report",
+    "content": "Karnataka is forecast to have a healthy monsoon onset in 2026. Heavy rainfall is predicted in Coastal and Malnad districts, while North and South Interior Karnataka will receive normal rains. Onset is expected by the first week of June. Sowing of Rice in coastal zones and Ragi or Maize in south interior zones should align with June rainfall. Drought-resistant measures and rainwater harvesting should be maintained in northern dry zones."
+  },
+  {
+    "state": "Tamil Nadu",
+    "category": "Seasonal Rainfall Report",
+    "content": "Tamil Nadu receives its primary rainfall from the Northeast Monsoon (October to December), though Southwest Monsoon (June to September) brings average rain to western districts. For 2026, Southwest Monsoon rains are expected to be normal. Northeast Monsoon is forecast to be normal to above-normal. Rice (Samba) and groundnut sowing should be planned around October. Farmers must focus on rainwater harvesting during peak rainy periods."
+  },
+  {
+    "state": "Uttar Pradesh",
+    "category": "Seasonal Rainfall Report",
+    "content": "Uttar Pradesh is predicted to receive normal rainfall during the 2026 monsoon season, starting in late June. Eastern and Central districts will receive healthy showers in July, making it an excellent time for transplanting Rice. Cane farmers in western UP should expect stable rainfall but should monitor for sugarcane borers and pests during humid conditions in August."
+  },
+  {
+    "state": "Punjab",
+    "category": "Seasonal Rainfall Report",
+    "content": "Punjab is forecast to have slightly below-normal to normal monsoon rainfall in 2026. Rains will arrive in late June. Since agriculture heavily relies on canal and tube-well irrigation, farmers should monitor groundwater use. Rainfall in July will aid Rice transplantation, but drainage management is required in case of short, high-intensity showers. Crop diversification into Maize or Pulses is recommended to conserve water."
+  }
+]

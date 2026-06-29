@@ -121,4 +121,28 @@ export async function clearChatHistory() {
   }
 }
 
+/**
+ * Fetch current weather for a city
+ */
+export async function getCurrentWeather(city) {
+  try {
+    const response = await api.get(`/weather/current`, { params: { city } });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || `Failed to fetch current weather for ${city}`);
+  }
+}
+
+/**
+ * Fetch 5-day weather forecast for a city
+ */
+export async function getWeatherForecast(city) {
+  try {
+    const response = await api.get(`/weather/forecast`, { params: { city } });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || `Failed to fetch weather forecast for ${city}`);
+  }
+}
+
 export default api;

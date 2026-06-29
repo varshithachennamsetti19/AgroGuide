@@ -1,27 +1,28 @@
 import mongoose from 'mongoose';
 
-const chatSchema = new mongoose.Schema(
+const weatherHistorySchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
-    question: {
+    city: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    temperature: {
+      type: Number,
+      required: true,
+    },
+    weatherCondition: {
       type: String,
       required: true,
     },
-    answer: {
-      type: String,
-      required: true,
-    },
-    language: {
-      type: String,
-      required: true,
-      default: 'en-US',
-    },
-    weatherData: {
-      type: mongoose.Schema.Types.Mixed,
+    timestamp: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -29,5 +30,5 @@ const chatSchema = new mongoose.Schema(
   }
 );
 
-const Chat = mongoose.model('Chat', chatSchema);
-export default Chat;
+const WeatherHistory = mongoose.model('WeatherHistory', weatherHistorySchema);
+export default WeatherHistory;

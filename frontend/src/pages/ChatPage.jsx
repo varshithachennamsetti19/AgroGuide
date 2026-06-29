@@ -125,7 +125,8 @@ export default function ChatPage() {
           dbId: chat._id,
           role: 'model',
           text: chat.answer,
-          timestamp: chat.createdAt
+          timestamp: chat.createdAt,
+          weatherData: chat.weatherData // load weather data from history
         });
       });
       setMessages(loadedMessages);
@@ -329,7 +330,8 @@ export default function ChatPage() {
               dbId: savedChat._id,
               role: 'model',
               text: savedChat.answer,
-              timestamp: savedChat.createdAt
+              timestamp: savedChat.createdAt,
+              weatherData: savedChat.weatherData || result.weatherData // bind weatherData
             }
           ];
         });
@@ -338,7 +340,22 @@ export default function ChatPage() {
         setDbChats(prev => [savedChat, ...prev]);
 
         // Speak the reply
-        speakText(savedChat.answer);
+        if ((result.promptForCity || result.promptForState) && ttsServiceRef.current) {
+          setIsSpeaking(true);
+          ttsServiceRef.current.speak(savedChat.answer, {
+            onStart: () => setIsSpeaking(true),
+            onEnd: () => {
+              setIsSpeaking(false);
+              // Auto-start microphone after asking for the city/state
+              setTimeout(() => {
+                startListening();
+              }, 400);
+            },
+            onError: () => setIsSpeaking(false)
+          });
+        } else {
+          speakText(savedChat.answer);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -360,7 +377,7 @@ export default function ChatPage() {
   const suggestions = [
     { title: '🌾 Crop Advisory', desc: 'Get tips for Rice, Cotton, Tomato cultivation...', text: 'Rice cultivation tips' },
     { title: '🏛 Government Schemes', desc: 'Find details about PM Kisan, Fasal Bima...', text: 'Tell me about PM Kisan' },
-    { title: '🌦 Weather Forecast', desc: 'Check weather advisories for crops...', text: 'What is the weather forecast for my crops?' },
+    { title: '🌦 Live Weather', desc: 'Get real-time weather info & farming advice...', text: "What is today's weather?" },
     { title: '📞 Emergency Help', desc: 'Contact crop protection emergency services...', text: 'How can I contact crop protection emergency help?' }
   ];
 
