@@ -10,6 +10,15 @@ router.use(protect);
 // POST /api/chat - Generate Gemini response and save to MongoDB
 router.post('/chat', generateAndSaveChat);
 
+// POST /api/chat/upload - Stub endpoint for future image-based crop disease diagnosis
+router.post('/chat/upload', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Image upload pipeline ready. Crop image analysis and visual disease diagnostics will be supported in the next phase.',
+    stub: true
+  });
+});
+
 // GET /api/chat/history - Get all chats for the logged-in user
 router.get('/chat/history', getHistory);
 

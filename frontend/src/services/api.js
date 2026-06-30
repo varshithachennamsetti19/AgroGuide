@@ -157,4 +157,64 @@ export async function updateUserLocation(locationData) {
   }
 }
 
+/**
+ * Fetch personalized dashboard status details
+ */
+export async function getDashboardStatus() {
+  try {
+    const response = await api.get('/dashboard/status');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to fetch dashboard status');
+  }
+}
+
+/**
+ * Fetch all farms for current user
+ */
+export async function getFarms() {
+  try {
+    const response = await api.get('/farms');
+    return response.data.farms || [];
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to fetch farms list');
+  }
+}
+
+/**
+ * Create a new farm record
+ */
+export async function createFarm(farmData) {
+  try {
+    const response = await api.post('/farms', farmData);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to create new farm');
+  }
+}
+
+/**
+ * Update an existing farm record
+ */
+export async function updateFarm(id, farmData) {
+  try {
+    const response = await api.put(`/farms/${id}`, farmData);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to update farm details');
+  }
+}
+
+/**
+ * Delete a farm record
+ */
+export async function deleteFarm(id) {
+  try {
+    const response = await api.delete(`/farms/${id}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to delete farm');
+  }
+}
+
 export default api;

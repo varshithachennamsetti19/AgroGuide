@@ -50,6 +50,79 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    fullName: {
+      type: String,
+      trim: true,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+    },
+    district: {
+      type: String,
+      trim: true,
+    },
+    village: {
+      type: String,
+      trim: true,
+    },
+    farmSize: {
+      type: Number,
+    },
+    farmSizeUnit: {
+      type: String,
+      enum: ['Acres', 'Hectares', 'Guntas', 'Bighas'],
+      default: 'Acres',
+    },
+    soilType: {
+      type: String,
+      trim: true,
+    },
+    waterSource: {
+      type: String,
+      trim: true,
+    },
+    irrigationMethod: {
+      type: String,
+      trim: true,
+    },
+    primaryCrop: {
+      type: String,
+      trim: true,
+    },
+    secondaryCrop: {
+      type: String,
+      trim: true,
+    },
+    cropStage: {
+      type: String,
+      trim: true,
+    },
+    plantingDate: {
+      type: Date,
+    },
+    expectedHarvestDate: {
+      type: Date,
+    },
+    livestock: {
+      type: String,
+      trim: true,
+    },
+    experienceYears: {
+      type: Number,
+    },
+    farmingType: {
+      type: String,
+      trim: true,
+    },
+    isProfileCompleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -57,9 +130,9 @@ const userSchema = new mongoose.Schema(
 );
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    next();
+    return;
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

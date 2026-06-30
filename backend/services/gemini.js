@@ -26,15 +26,18 @@ const model = genAI.getGenerativeModel({
 
 // System Prompt
 const SYSTEM_PROMPT = `
-You are AgroGuide, an expert AI voice assistant for farmers, acting as a helpful Farmer Assistant, Government Scheme Assistant, and friendly Elderly Support Advisor.
+You are AgroGuide, a personalized AI farming assistant, expert Agricultural Weather Advisor, and crop protection helper.
 
-Your goals are to explain complex agricultural terms in simple, warm, and clear language, suitable for elderly farmers.
+Your goals are to explain agricultural matters in simple, warm, and clear language, suitable for farmers, adapting strictly to their unique profiles.
 
 Strict Rules:
 1. Detect the user's language automatically. Reply ONLY in the same language (Telugu, Hindi, or English) as the user's message.
-2. Use simple, warm, and practical language. Avoid jargon.
-3. Prioritize retrieved context inside the <context> tag to answer the user's query.
-4. Avoid hallucinations. If the retrieved context does not contain the answer, say "I don't have that information in my knowledge base. Let me know if you want general advice."
+2. Use simple, warm, and practical language. Avoid technical jargon.
+3. Prioritize personalizing your response based on the farmer's profile context (Primary Crop, Crop Stage, Soil, Irrigation, Location, Weather) and retrieved knowledge base <context>. Never provide generic farming advice when farmer profile data is available.
+4. If the farmer describes crop disease symptoms (e.g., spots, pests, wilting):
+   - Suggest 1-2 likely diseases based on the symptoms and their crop.
+   - Outline immediate natural or chemical precautions.
+   - Advise checking with a local agricultural extension officer or expert to verify, emphasizing that you cannot make absolute diagnoses.
 5. Be concise and practical. Keep responses limited to 2-3 short sentences so they are easy to read and speak out loud.
 `;
 
@@ -145,5 +148,55 @@ Response:
   } catch (error) {
     console.error("Gemini Weather Summary Error:", error);
     throw new Error("Failed to generate weather summary.");
+  }
+}
+
+/**
+ * Generate a highly personalized daily farm overview and advice based on profile and weather
+ * @param {Object} weather - Raw weather JSON
+ * @param {Object} profile - User profile document/object
+ * @param {string} langCode - Language code
+ */
+export async function generateDailyFarmOverview(weather, profile, langCode) {
+  try {
+    let languageName = "English";
+    if (langCode === 'te-IN') languageName = "Telugu";
+    if (langCode === 'hi-IN') languageName = "Hindi";
+
+    const prompt = `
+You are AgroGuide, the expert Agricultural Weather Advisor.
+Provide a highly personalized daily recommendation feed for a farmer with the following profile:
+
+Farmer Location: ${profile.village}, ${profile.district}, ${profile.state}
+Primary Crop: ${profile.primaryCrop}
+Current Stage: ${profile.cropStage || 'Vegetative'}
+Soil Type: ${profile.soilType || 'Loamy'}
+Water Source: ${profile.waterSource || 'Borewell'}
+Irrigation Method: ${profile.irrigationMethod || 'Drip'}
+Farming Experience: ${profile.experienceYears || 5} years
+Farming Type: ${profile.farmingType || 'Traditional'}
+
+Current Weather:
+${JSON.stringify(weather, null, 2)}
+
+Rules:
+1. Write ONLY in ${languageName}. Always match the language.
+2. Be extremely concise. Keep the total response to 3 short sentences.
+3. Tailor the advice exactly to the combination of Crop (${profile.primaryCrop}), Stage (${profile.cropStage}), Soil (${profile.soilType}), and Weather conditions:
+   - If Heavy Rain is forecast or happening (Condition like Rain/Drizzle or probability > 50%): Advise avoiding chemical/fertilizer/pesticide spraying (to prevent run-off), ensuring drainage, and postponing irrigation.
+   - If High Temperature (>30°C) and dry: Advise increasing watering frequency (mention their irrigation method: ${profile.irrigationMethod || 'Drip'}), protecting young plants, and avoiding sprays during hot noon hours.
+   - If Strong Winds (>5 m/s): Advise avoiding chemical spraying (wind drift) and supporting tall crop stalks.
+   - If Sunny and Moderate: Advise it's an excellent day for harvesting, weeding, and drying crops.
+4. Keep the tone warm, friendly, and supportive, like a local village elder.
+
+Response:
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text().trim();
+  } catch (error) {
+    console.error("Gemini Farm Overview Error:", error);
+    return "Unable to generate personalized recommendation. Please verify your internet connection or try again.";
   }
 }

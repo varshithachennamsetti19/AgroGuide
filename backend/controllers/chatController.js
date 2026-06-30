@@ -298,18 +298,52 @@ export const generateAndSaveChat = async (req, res) => {
     }
 
     // 2. STANDARD CROP/SCHEME/GENERAL FLOW
+    // Fetch user profile details to personalize the chat response
+    const dbUser = await User.findById(userId);
+    let farmerProfileContext = "";
+    if (dbUser && dbUser.isProfileCompleted) {
+      farmerProfileContext = `
+Farmer Profile Context:
+- Full Name: ${dbUser.fullName || dbUser.name}
+- Location: ${dbUser.village || 'N/A'}, ${dbUser.district || 'N/A'}, ${dbUser.state || 'N/A'}
+- Primary Crop: ${dbUser.primaryCrop}
+- Crop Stage: ${dbUser.cropStage || 'Vegetative Stage'}
+- Planting Date: ${dbUser.plantingDate ? new Date(dbUser.plantingDate).toDateString() : 'N/A'}
+- Soil Type: ${dbUser.soilType || 'Loamy'}
+- Water Source: ${dbUser.waterSource || 'Borewell'}
+- Irrigation Method: ${dbUser.irrigationMethod || 'Drip'}
+- Farming Type: ${dbUser.farmingType || 'Traditional'}
+`;
+    }
+
     // Retrieve context for Scheme or Crop intents
     let context = "";
     if (intent === 'SCHEME_QUERY' || intent === 'CROP_QUERY') {
-      const retrievedChunks = await retrieve(message, 3);
+      let augmentedQuery = message;
+      if (dbUser && dbUser.isProfileCompleted) {
+        if (intent === 'CROP_QUERY' && dbUser.primaryCrop) {
+          augmentedQuery = `${dbUser.primaryCrop} ${message}`;
+        } else if (intent === 'SCHEME_QUERY' && dbUser.state) {
+          augmentedQuery = `${dbUser.state} ${message}`;
+        }
+      }
+      
+      console.log(`🔍 RAG: Augmented query: "${augmentedQuery}"`);
+      const retrievedChunks = await retrieve(augmentedQuery, 3);
       if (retrievedChunks && retrievedChunks.length > 0) {
         context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
         console.log(`[RAG Context retrieved from ${retrievedChunks.length} chunks]`);
       }
     }
 
+    // Combine profile context and RAG context
+    const fullContext = [
+      farmerProfileContext,
+      context ? `Knowledge Base Grounding:\n${context}` : ''
+    ].filter(Boolean).join('\n\n');
+
     // Generate reply using Gemini service with context
-    const reply = await generateReply(message, history, context);
+    const reply = await generateReply(message, history, fullContext);
     console.log(`[${new Date().toISOString()}] Response generated in ${Date.now() - startTime}ms`);
 
     // Save chat to database

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, VolumeX, RefreshCw, LogOut, ChevronLeft, Trash, MapPin } from 'lucide-react';
-import { sendChatMessage, getChatHistory, deleteChat, clearChatHistory } from '../services/api';
+import { sendChatMessage, getChatHistory, deleteChat, clearChatHistory, getDashboardStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MessageItem from '../components/MessageItem';
 import ChatInput from '../components/ChatInput';
 import LoadingBubble from '../components/LoadingBubble';
 import { SpeechRecognitionService, TextToSpeechService } from '../utils/speech';
+import ProfileWizard from './ProfileWizard';
+import FarmerDashboard from './FarmerDashboard';
 
 /**
  * Automatically detects the language of a string based on unicode ranges.
@@ -74,6 +76,11 @@ export default function ChatPage() {
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Tab & personalization states
+  const [activeTab, setActiveTab] = useState('chat');
+  const [dashboardData, setDashboardData] = useState(null);
+  const [isProfileCompleted, setIsProfileCompleted] = useState(user?.isProfileCompleted || false);
+
   // Voice States
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -127,14 +134,44 @@ export default function ChatPage() {
     }
   }, [spokenLanguage]);
 
+  useEffect(() => {
+    if (user) {
+      setIsProfileCompleted(user.isProfileCompleted);
+      setSpokenLanguage(user.preferredLanguage || 'en-US');
+    }
+  }, [user]);
+
+  const loadDashboard = async () => {
+    try {
+      const res = await getDashboardStatus();
+      if (res.success) {
+        setDashboardData(res);
+      }
+    } catch (err) {
+      console.error('Dashboard status fetch failed:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isProfileCompleted) {
+      loadDashboard();
+    }
+  }, [isProfileCompleted]);
+
+  const handleDiseaseSearch = (symptoms) => {
+    setActiveTab('chat');
+    handleSend(symptoms);
+  };
+
   const handleEditLocation = async () => {
-    const newCity = window.prompt("Enter your preferred city name for weather updates:", user?.preferredCity || "");
+    const newCity = window.prompt("Enter your preferred city name for weather updates:", user?.preferredCity || user?.district || "");
     if (newCity !== null && newCity.trim() !== "") {
       try {
         setIsLoading(true);
         const res = await updateLocation({ preferredCity: newCity.trim() });
         if (res.success) {
           alert("Location preference updated successfully!");
+          loadDashboard();
         } else {
           setError(res.error || "Failed to update location preference.");
         }
@@ -600,6 +637,24 @@ export default function ChatPage() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {isProfileCompleted && (
+              <div className="mode-toggle-group" style={{ marginRight: '8px' }}>
+                <button 
+                  onClick={() => setActiveTab('chat')} 
+                  className={`mode-toggle-btn ${activeTab === 'chat' ? 'active' : ''}`}
+                  title="AI Voice Assistant Chat"
+                >
+                  💬 Assistant
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('dashboard'); loadDashboard(); }} 
+                  className={`mode-toggle-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+                  title="Farmer Dashboard Feed"
+                >
+                  📊 Dashboard
+                </button>
+              </div>
+            )}
             <div className="mode-toggle-group">
               <button 
                 onClick={() => setAssistantMode('hybrid')} 
@@ -651,7 +706,18 @@ export default function ChatPage() {
           </div>
         )}
 
-        {assistantMode === 'voice' ? (
+        {!isProfileCompleted ? (
+          <ProfileWizard 
+            onComplete={() => { setIsProfileCompleted(true); loadDashboard(); }} 
+            updateLocation={updateLocation} 
+          />
+        ) : activeTab === 'dashboard' ? (
+          <FarmerDashboard 
+            data={dashboardData} 
+            onRefresh={loadDashboard} 
+            onDiseaseSearch={handleDiseaseSearch} 
+          />
+        ) : assistantMode === 'voice' ? (
           <section className="voice-only-screen">
             <div className="voice-only-avatar-container">
               <div 
@@ -742,7 +808,7 @@ export default function ChatPage() {
                 <div className="welcome-logo">
                   <Bot size={60} />
                 </div>
-                <h2 className="welcome-title">Namaste, {user?.name}! How can I assist you today?</h2>
+                <h2 className="welcome-title">Namaste, {user?.fullName || user?.name}! How can I assist you today?</h2>
                 <p className="welcome-subtitle">
                   I am your AI farming assistant. Ask me questions about crops, pests, fertilizers, crop rotations, or weather. You can speak to me in Telugu, Hindi, Tamil, or English!
                 </p>
@@ -794,78 +860,81 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="input-container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', maxWidth: '800px', margin: '0 auto 8px auto' }}>
-            <div className="voice-lang-select-container">
-              <span className="voice-lang-label">Speech Input Language:</span>
-              <select
-                value={spokenLanguage}
-                onChange={(e) => setSpokenLanguage(e.target.value)}
-                className="voice-lang-select"
-                title="Choose language you speak"
-              >
-                <option value="en-US">English</option>
-                <option value="te-IN">తెలుగు (Telugu)</option>
-                <option value="hi-IN">हिन्दी (Hindi)</option>
-                <option value="ta-IN">தமிழ் (Tamil)</option>
-              </select>
+        {isProfileCompleted && activeTab === 'chat' && (
+          <div className="input-container">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', maxWidth: '800px', margin: '0 auto 8px auto' }}>
+              <div className="voice-lang-select-container">
+                <span className="voice-lang-label">Speech Input Language:</span>
+                <select
+                  value={spokenLanguage}
+                  onChange={(e) => setSpokenLanguage(e.target.value)}
+                  className="voice-lang-select"
+                  title="Choose language you speak"
+                >
+                  <option value="en-US">English</option>
+                  <option value="te-IN">తెలుగు (Telugu)</option>
+                  <option value="hi-IN">हिन्दी (Hindi)</option>
+                  <option value="ta-IN">தமிழ் (Tamil)</option>
+                </select>
+              </div>
             </div>
-          </div>
 
-          {assistantMode === 'hybrid' && (
-            <>
-              {(isListening || isSpeaking) && (
-                <div className="voice-controls-bar">
-                  <div className="voice-status-group">
-                    {isListening && (
-                      <div className="voice-status-indicator listening">
-                        <div className="voice-wave">
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
+            {assistantMode === 'hybrid' && (
+              <>
+                {(isListening || isSpeaking) && (
+                  <div className="voice-controls-bar">
+                    <div className="voice-status-group">
+                      {isListening && (
+                        <div className="voice-status-indicator listening">
+                          <div className="voice-wave">
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                          </div>
+                          <span>Listening...</span>
                         </div>
-                        <span>Listening...</span>
-                      </div>
-                    )}
-                    {isSpeaking && (
-                      <div className="voice-status-indicator speaking">
-                        <div className="voice-wave">
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
-                          <div className="voice-wave-bar"></div>
+                      )}
+                      {isSpeaking && (
+                        <div className="voice-status-indicator speaking">
+                          <div className="voice-wave">
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                            <div className="voice-wave-bar"></div>
+                          </div>
+                          <span>Speaking response...</span>
                         </div>
-                        <span>Speaking response...</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="voice-actions">
-                    {isSpeaking && (
-                      <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
-                        <VolumeX size={12} />
-                        <span>Stop Speaking</span>
+                      )}
+                    </div>
+                    <div className="voice-actions">
+                      {isSpeaking && (
+                        <button onClick={stopSpeaking} className="voice-btn stop" title="Stop Speaking">
+                          <VolumeX size={12} />
+                          <span>Stop Speaking</span>
+                        </button>
+                      )}
+                      <button onClick={restartListening} className="voice-btn" title="Restart Listening">
+                        <RefreshCw size={12} />
+                        <span>Restart Listening</span>
                       </button>
-                    )}
-                    <button onClick={restartListening} className="voice-btn" title="Restart Listening">
-                      <RefreshCw size={12} />
-                      <span>Restart Listening</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                isLoading={isLoading}
-                isListening={isListening}
-                onMicClick={startListening}
-              />
-            </>
-          )}
-        </div>
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+                  isLoading={isLoading}
+                  isListening={isListening}
+                  onMicClick={startListening}
+                  onCameraClick={() => alert("Crop photo upload for AI disease detection will be available in the next phase! For now, please type or speak your crop symptoms.")}
+                />
+              </>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

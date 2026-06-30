@@ -6,6 +6,8 @@ import connectDB from './config/db.js';
 import chatRouter from './routes/chat.js';
 import authRouter from './routes/auth.js';
 import weatherRouter from './routes/weatherRoutes.js';
+import farmRouter from './routes/farmRoutes.js';
+import dashboardRouter from './routes/dashboardRoutes.js';
 import { initializeRetriever } from './rag/retriever.js';
 
 // Load environment variables
@@ -39,6 +41,8 @@ app.use(express.json());
 // Mount API routes
 app.use('/api/auth', authRouter);
 app.use('/api/weather', weatherRouter);
+app.use('/api/farms', farmRouter);
+app.use('/api/dashboard', dashboardRouter);
 app.use('/api', chatRouter);
 
 // Basic health check route

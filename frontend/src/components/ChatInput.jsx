@@ -1,11 +1,11 @@
 import React, { useRef, useEffect } from 'react';
-import { SendHorizontal, Mic, MicOff } from 'lucide-react';
+import { SendHorizontal, Mic, Camera } from 'lucide-react';
 
 /**
  * Chat input component containing an auto-expanding textarea,
  * submit logic (Enter key), and a styled submit button.
  */
-export default function ChatInput({ value, onChange, onSubmit, isLoading, isListening, onMicClick }) {
+export default function ChatInput({ value, onChange, onSubmit, isLoading, isListening, onMicClick, onCameraClick }) {
   const textareaRef = useRef(null);
 
   // Auto-resize the textarea based on height of content
@@ -38,6 +38,17 @@ export default function ChatInput({ value, onChange, onSubmit, isLoading, isList
         className="chat-input"
         disabled={isLoading}
       />
+      <button
+        type="button"
+        onClick={onCameraClick}
+        className="mic-button"
+        disabled={isLoading}
+        title="Upload crop photo for disease assistant"
+        aria-label="Upload crop photo"
+        style={{ marginRight: '6px' }}
+      >
+        <Camera size={18} />
+      </button>
       <button
         type="button"
         onClick={onMicClick}
