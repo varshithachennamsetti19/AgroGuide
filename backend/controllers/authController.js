@@ -159,3 +159,55 @@ export const getMe = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Update user profile / location preferences
+ * @route   PUT /api/auth/profile
+ * @access  Private
+ */
+export const updateProfile = async (req, res) => {
+  const { preferredCity, preferredDistrict, preferredState, latitude, longitude, lastKnownLocation, preferredLanguage } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User account not found',
+      });
+    }
+
+    if (preferredCity !== undefined) user.preferredCity = preferredCity;
+    if (preferredDistrict !== undefined) user.preferredDistrict = preferredDistrict;
+    if (preferredState !== undefined) user.preferredState = preferredState;
+    if (latitude !== undefined) user.latitude = latitude;
+    if (longitude !== undefined) user.longitude = longitude;
+    if (lastKnownLocation !== undefined) user.lastKnownLocation = lastKnownLocation;
+    if (preferredLanguage !== undefined) user.preferredLanguage = preferredLanguage;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        preferredLanguage: user.preferredLanguage,
+        preferredCity: user.preferredCity,
+        preferredDistrict: user.preferredDistrict,
+        preferredState: user.preferredState,
+        latitude: user.latitude,
+        longitude: user.longitude,
+        lastKnownLocation: user.lastKnownLocation,
+      },
+    });
+  } catch (error) {
+    console.error('Update profile error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error occurred during profile update',
+    });
+  }
+};

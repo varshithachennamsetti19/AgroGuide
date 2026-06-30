@@ -12,13 +12,28 @@ const weatherHistorySchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    latitude: {
+      type: Number,
+    },
+    longitude: {
+      type: Number,
+    },
     temperature: {
       type: Number,
       required: true,
     },
-    weatherCondition: {
+    condition: {
       type: String,
       required: true,
+    },
+    weatherCondition: {
+      type: String,
+    },
+    humidity: {
+      type: Number,
+    },
+    windSpeed: {
+      type: Number,
     },
     timestamp: {
       type: Date,

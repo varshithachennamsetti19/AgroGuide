@@ -2,8 +2,10 @@ import { generateReply, generateWeatherSummary } from '../services/gemini.js';
 import Chat from '../models/Chat.js';
 import { detectIntent, extractCity, detectQueryTime, isSeasonalQuery, extractState } from '../services/intentRouter.js';
 import { retrieve } from '../rag/retriever.js';
-import { fetchCurrentWeather, fetchWeatherForecast } from '../services/weatherService.js';
+import { fetchCurrentWeather, fetchWeatherForecast, reverseGeocode, geocodeCity } from '../services/weatherService.js';
 import WeatherHistory from '../models/WeatherHistory.js';
+import { checkAndQueueAlerts } from '../services/alertManager.js';
+import User from '../models/User.js';
 
 // Helper to detect language for saving to DB
 const detectLanguage = (text) => {
@@ -26,7 +28,7 @@ const detectLanguage = (text) => {
  * @access  Private
  */
 export const generateAndSaveChat = async (req, res) => {
-  const { message, history } = req.body;
+  const { message, history, latitude, longitude } = req.body;
   const userId = req.user._id;
 
   // Validate request body
@@ -62,8 +64,20 @@ export const generateAndSaveChat = async (req, res) => {
       }
     }
     
+    const weatherIntents = [
+      'WEATHER_QUERY',
+      'CURRENT_WEATHER',
+      'FORECAST',
+      'RAIN_FORECAST',
+      'TEMPERATURE',
+      'HUMIDITY',
+      'AIR_QUALITY',
+      'SUNRISE',
+      'SUNSET'
+    ];
+
     // 1. WEATHER INTENT HANDLING FLOW
-    if (intent === 'WEATHER_QUERY') {
+    if (weatherIntents.includes(intent)) {
       const isSeasonal = isSeasonalQuery(message) || (isStateOnly && history && history.length > 0);
 
       // Handle seasonal / yearly / monsoon rainfall forecast queries
@@ -130,9 +144,45 @@ export const generateAndSaveChat = async (req, res) => {
       }
 
       // Standard City Weather Flow
-      const city = extractCity(message);
+      let city = extractCity(message);
+      let detectedLat = latitude;
+      let detectedLon = longitude;
       
-      // Case A: City is missing - Prompt the user in their language
+      // If coordinates are present, try to reverse geocode them to get the city name
+      if (!city && detectedLat !== undefined && detectedLon !== undefined && detectedLat !== null && detectedLon !== null) {
+        try {
+          const revGeo = await reverseGeocode(detectedLat, detectedLon);
+          if (revGeo && revGeo.city) {
+            city = revGeo.city;
+            console.log(`[Weather Query] Reverse geocoded coordinates to city: "${city}", state: "${revGeo.state}"`);
+            
+            // Save/update user profile location details
+            await User.findByIdAndUpdate(userId, {
+              preferredCity: city,
+              preferredState: revGeo.state,
+              preferredDistrict: revGeo.district || '',
+              latitude: detectedLat,
+              longitude: detectedLon,
+              lastKnownLocation: `${city}, ${revGeo.state}`
+            });
+          }
+        } catch (err) {
+          console.error('Failed to reverse geocode coordinates:', err.message);
+        }
+      }
+
+      // If city is still not found, check the user's preferred city in profile
+      if (!city) {
+        const dbUser = await User.findById(userId);
+        if (dbUser && dbUser.preferredCity) {
+          city = dbUser.preferredCity;
+          detectedLat = dbUser.latitude;
+          detectedLon = dbUser.longitude;
+          console.log(`[Weather Query] Using user preferredCity from profile: "${city}"`);
+        }
+      }
+
+      // Case A: City is still missing -> Prompt the user in their language
       if (!city) {
         let reply = 'Which city would you like the weather for?';
         if (language === 'te-IN') {
@@ -158,9 +208,31 @@ export const generateAndSaveChat = async (req, res) => {
         });
       }
 
+      // If city was extracted from message (so it wasn't saved in the reverse-geocode step above),
+      // and user does not have a preferred city, let's geocode and save it!
+      const dbUser = await User.findById(userId);
+      if (dbUser && !dbUser.preferredCity) {
+        try {
+          const geo = await geocodeCity(city);
+          await User.findByIdAndUpdate(userId, {
+            preferredCity: city,
+            preferredState: geo.state,
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            lastKnownLocation: `${city}, ${geo.state}`
+          });
+          console.log(`Saved preferredCity "${city}" to user profile.`);
+        } catch (err) {
+          console.error('Failed to geocode and save user preferred city:', err.message);
+          // Fallback: save city anyway
+          await User.findByIdAndUpdate(userId, { preferredCity: city });
+        }
+      }
+
       // Case B: City is present - Fetch weather & summarize
-      const queryType = detectQueryTime(message);
-      console.log(`[Weather Query] City: "${city}", Type: "${queryType}"`);
+      const isForecastIntent = intent === 'FORECAST' || intent === 'RAIN_FORECAST';
+      const queryType = isForecastIntent || detectQueryTime(message) === 'forecast' ? 'forecast' : 'current';
+      console.log(`[Weather Query] City: "${city}", Type: "${queryType}", Intent: "${intent}"`);
       
       let weatherData;
       if (queryType === 'forecast') {
@@ -176,20 +248,37 @@ export const generateAndSaveChat = async (req, res) => {
       // Save record to WeatherHistory schema
       let tempToSave = 0;
       let condToSave = 'Clear';
+      let humidityToSave = 0;
+      let windSpeedToSave = 0;
       if (queryType === 'forecast') {
         tempToSave = weatherData.forecast[0]?.temperature || 0;
         condToSave = weatherData.forecast[0]?.weatherCondition || 'Clear';
+        humidityToSave = weatherData.forecast[0]?.humidity || 0;
+        windSpeedToSave = weatherData.windSpeed || 0;
       } else {
         tempToSave = weatherData.temperature;
         condToSave = weatherData.weatherCondition;
+        humidityToSave = weatherData.humidity;
+        windSpeedToSave = weatherData.windSpeed;
       }
 
       await WeatherHistory.create({
         userId,
         city: weatherData.city,
+        latitude: weatherData.latitude || detectedLat,
+        longitude: weatherData.longitude || detectedLon,
         temperature: tempToSave,
-        weatherCondition: condToSave
+        condition: condToSave,
+        weatherCondition: condToSave,
+        humidity: humidityToSave,
+        windSpeed: windSpeedToSave,
+        timestamp: new Date()
       });
+
+      // Trigger future-ready Alert System (BullMQ / Redis hook)
+      if (queryType === 'current') {
+        await checkAndQueueAlerts(weatherData, userId);
+      }
 
       // Save to main Chat history with embedded weather metadata
       const savedChat = await Chat.create({

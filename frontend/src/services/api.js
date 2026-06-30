@@ -19,9 +19,9 @@ const api = axios.create({
  * @param {Array} history - The chat conversation history: Array of { role: 'user' | 'model', text: string }
  * @returns {Promise<Object>} The response details containing the AI reply.
  */
-export async function sendChatMessage(message, history = []) {
+export async function sendChatMessage(message, history = [], latitude = null, longitude = null) {
   try {
-    const response = await api.post('/chat', { message, history });
+    const response = await api.post('/chat', { message, history, latitude, longitude });
     
     if (response.data && response.data.success) {
       return response.data;
@@ -142,6 +142,18 @@ export async function getWeatherForecast(city) {
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.error || `Failed to fetch weather forecast for ${city}`);
+  }
+}
+
+/**
+ * Update user location profile
+ */
+export async function updateUserLocation(locationData) {
+  try {
+    const response = await api.put('/auth/profile', locationData);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to update location profile');
   }
 }
 

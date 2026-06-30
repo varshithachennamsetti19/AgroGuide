@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, VolumeX, RefreshCw, LogOut, ChevronLeft, Trash } from 'lucide-react';
+import { Bot, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, VolumeX, RefreshCw, LogOut, ChevronLeft, Trash, MapPin } from 'lucide-react';
 import { sendChatMessage, getChatHistory, deleteChat, clearChatHistory } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MessageItem from '../components/MessageItem';
@@ -41,8 +41,30 @@ function getLanguageLabel(code) {
   return mapping[code] || code;
 }
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+      },
+      (error) => {
+        console.warn("Geolocation permission error or denied:", error);
+        resolve(null);
+      },
+      { timeout: 5000 }
+    );
+  });
+};
+
 export default function ChatPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateLocation } = useAuth();
 
   const [messages, setMessages] = useState([]);
   const [dbChats, setDbChats] = useState([]);
@@ -104,6 +126,25 @@ export default function ChatPage() {
       recognitionServiceRef.current.setLanguage(spokenLanguage);
     }
   }, [spokenLanguage]);
+
+  const handleEditLocation = async () => {
+    const newCity = window.prompt("Enter your preferred city name for weather updates:", user?.preferredCity || "");
+    if (newCity !== null && newCity.trim() !== "") {
+      try {
+        setIsLoading(true);
+        const res = await updateLocation({ preferredCity: newCity.trim() });
+        if (res.success) {
+          alert("Location preference updated successfully!");
+        } else {
+          setError(res.error || "Failed to update location preference.");
+        }
+      } catch (err) {
+        setError(err.message || "Failed to update location preference.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
   const loadHistory = async () => {
     setError(null);
@@ -308,7 +349,32 @@ export default function ChatPage() {
           text: m.text
         }));
 
-      const result = await sendChatMessage(messageText, apiHistory);
+      // Check if the query is weather-related
+      const isWeatherMsg = (text) => {
+        const msg = text.toLowerCase();
+        return (
+          msg.includes('weather') || msg.includes('rain') || msg.includes('forecast') ||
+          msg.includes('temperature') || msg.includes('humidity') || msg.includes('wind') ||
+          msg.includes('climate') || msg.includes('storm') || msg.includes('temp') ||
+          msg.includes('వాతావరణం') || msg.includes('వర్షం') || msg.includes('मौसम') || msg.includes('बारिश')
+        );
+      };
+
+      let lat = null;
+      let lon = null;
+      if (isWeatherMsg(messageText)) {
+        try {
+          const coords = await getBrowserLocation();
+          if (coords) {
+            lat = coords.latitude;
+            lon = coords.longitude;
+          }
+        } catch (err) {
+          console.warn("Failed to retrieve location:", err);
+        }
+      }
+
+      const result = await sendChatMessage(messageText, apiHistory, lat, lon);
 
       if (result.success && result.chat) {
         const savedChat = result.chat;
@@ -494,6 +560,14 @@ export default function ChatPage() {
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.email}
+              </div>
+              <div 
+                style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} 
+                onClick={handleEditLocation} 
+                title="Change preferred city"
+              >
+                <MapPin size={12} />
+                <span style={{ textDecoration: 'underline' }}>{user?.preferredCity || 'Set Location'}</span>
               </div>
             </div>
           </div>

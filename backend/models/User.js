@@ -28,6 +28,28 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'en-US',
     },
+    preferredCity: {
+      type: String,
+      trim: true,
+    },
+    preferredDistrict: {
+      type: String,
+      trim: true,
+    },
+    preferredState: {
+      type: String,
+      trim: true,
+    },
+    latitude: {
+      type: Number,
+    },
+    longitude: {
+      type: Number,
+    },
+    lastKnownLocation: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,

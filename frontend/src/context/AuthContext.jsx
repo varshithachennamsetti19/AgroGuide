@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { getMe, loginUser, registerUser, logoutUser } from '../services/api';
+import { getMe, loginUser, registerUser, logoutUser, updateUserLocation } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -64,19 +64,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout handler
-  const logout = async () => {
+  // Update location handler
+  const updateLocation = async (locationData) => {
     setError(null);
-    setLoading(true);
     try {
-      await logoutUser();
-      setUser(null);
-      return { success: true };
+      const response = await updateUserLocation(locationData);
+      if (response.success && response.user) {
+        setUser(response.user);
+        return { success: true };
+      }
     } catch (err) {
-      setError(err.message || 'Logout failed');
+      setError(err.message || 'Failed to update location');
       return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -89,6 +88,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        updateLocation,
         setError,
       }}
     >

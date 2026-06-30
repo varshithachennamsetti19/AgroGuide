@@ -11,32 +11,76 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 function classifyWithRules(message) {
   const msg = message.toLowerCase();
   
-  // Weather indicators
+  // 1. Air Quality Check
   if (
-    msg.includes('weather') || 
-    msg.includes('rain') || 
-    msg.includes('forecast') || 
-    msg.includes('temperature') || 
-    msg.includes('humidity') ||
-    msg.includes('wind') ||
-    msg.includes('climate') ||
-    msg.includes('storm') ||
-    msg.includes('temp') ||
-    msg.includes('వాతావరణం') || // Telugu: weather
-    msg.includes('వర్షం') ||      // Telugu: rain
-    msg.includes('కురుస్తుంది') || // Telugu: falls (rain)
-    msg.includes('ఉష్ణోగ్రత') ||   // Telugu: temperature
-    msg.includes('గాలి') ||       // Telugu: wind
-    msg.includes('తేమ') ||        // Telugu: humidity
-    msg.includes('క్లైమేట్') ||    // Telugu: climate
-    msg.includes('मौसम') ||        // Hindi: weather
-    msg.includes('बारिश') ||       // Hindi: rain
-    msg.includes('तापमान') ||       // Hindi: temperature
-    msg.includes('हवा') ||         // Hindi: wind
-    msg.includes('नमी') ||         // Hindi: humidity
-    msg.includes('जलवायु')         // Hindi: climate
+    msg.includes('air quality') || msg.includes('aqi') || msg.includes('pollution') || msg.includes('smog') || msg.includes('smoke') ||
+    msg.includes('గాలి నాణ్యత') || msg.includes('కాలుష్యం') || msg.includes('వాయు కాలుష్యం') ||
+    msg.includes('हवा की गुणवत्ता') || msg.includes('प्रदूषण') || msg.includes('वायु प्रदूषण')
   ) {
-    return 'WEATHER_QUERY';
+    return 'AIR_QUALITY';
+  }
+
+  // 2. Sunrise Check
+  if (
+    msg.includes('sunrise') || msg.includes('sun rise') || msg.includes('morning sun') ||
+    msg.includes('సూర్యోదయం') ||
+    msg.includes('सूर्योदय') || msg.includes('सूरज उगना')
+  ) {
+    return 'SUNRISE';
+  }
+
+  // 3. Sunset Check
+  if (
+    msg.includes('sunset') || msg.includes('sun set') || msg.includes('evening sun') ||
+    msg.includes('సూర్యాస్తమయం') ||
+    msg.includes('सूर्यास्त') || msg.includes('सूरज डूबना')
+  ) {
+    return 'SUNSET';
+  }
+
+  // 4. Humidity Check
+  if (
+    msg.includes('humidity') || msg.includes('moisture') || msg.includes('damp') || msg.includes('dampness') || msg.includes('humid') ||
+    msg.includes('తేమ') || msg.includes('గాలిలో తేమ') ||
+    msg.includes('नमी') || msg.includes('उमस')
+  ) {
+    return 'HUMIDITY';
+  }
+
+  // 5. Rain Forecast Check
+  if (
+    msg.includes('rain') || msg.includes('rainy') || msg.includes('shower') || msg.includes('drizzle') || msg.includes('precipitation') || msg.includes('storm') || msg.includes('raining') || msg.includes('downpour') ||
+    msg.includes('వర్షం') || msg.includes('వర్షాలు') || msg.includes('వర్షపాతం') || msg.includes('వాన') || msg.includes('కురుస్తుంది') || msg.includes('చినుకులు') ||
+    msg.includes('बारिश') || msg.includes('वर्षा') || msg.includes('पानी गिरना') || msg.includes('बरसत')
+  ) {
+    return 'RAIN_FORECAST';
+  }
+
+  // 6. Temperature Check
+  if (
+    msg.includes('temperature') || msg.includes('temp') || msg.includes('hot') || msg.includes('cold') || msg.includes('degree') || msg.includes('degrees') || msg.includes('warmth') || msg.includes('heat') ||
+    msg.includes('ఉష్ణోగ్రత') || msg.includes('వేడి') || msg.includes('చలి') || msg.includes('ఎండ') ||
+    msg.includes('तापमान') || msg.includes('गर्मी') || msg.includes('ठंडी') || msg.includes('डिग्री') || msg.includes('धूप')
+  ) {
+    return 'TEMPERATURE';
+  }
+
+  // 7. General Forecast Check
+  if (
+    msg.includes('forecast') || msg.includes('weekly') || msg.includes('5 day') || msg.includes('tomorrow') || msg.includes('next week') || msg.includes('outlook') ||
+    msg.includes('రేపు') || msg.includes('ముందు చూపు') || msg.includes('వాతావరణ సూచన') ||
+    msg.includes('पूर्वानुमान') || msg.includes('कल का मौसम') || msg.includes('कल मौसम')
+  ) {
+    return 'FORECAST';
+  }
+
+  // 8. General Current Weather Check (fallback weather)
+  if (
+    msg.includes('weather') || msg.includes('climate') || msg.includes('wind') || msg.includes('temp') ||
+    msg.includes('వాతావరణం') || msg.includes('గాలి') || msg.includes('క్లైమేట్') ||
+    msg.includes('मौसम') || msg.includes('हवा') || msg.includes('जलवायु')
+  ) {
+    return 'CURRENT_WEATHER';
   }
 
   // Scheme indicators
@@ -295,10 +339,17 @@ You are an intent classifier for a smart agricultural voice assistant named Agro
 Categorize the incoming user query into exactly one of these categories:
 - SCHEME_QUERY: Questions about agricultural subsidies, benefits, or government schemes (e.g. PM Kisan, Rythu Bharosa, Fasal Bima).
 - CROP_QUERY: Questions about farming tips, sowing, watering, spacing, or pest control for specific crops.
-- WEATHER_QUERY: Questions about weather forecasts, rainfall, climate, temperature, or moisture.
+- CURRENT_WEATHER: Questions about current weather today, climate now, or general weather queries.
+- FORECAST: Questions about future weather forecasts, 5-day outlook, or tomorrow's weather.
+- RAIN_FORECAST: Questions about rain, precipitation, storms, or showers.
+- TEMPERATURE: Questions about heat, cold, degree, temperature.
+- HUMIDITY: Questions about humidity or moisture in the air.
+- AIR_QUALITY: Questions about air pollution, air quality index, or breathing conditions.
+- SUNRISE: Questions about sunrise times or when the sun rises.
+- SUNSET: Questions about sunset times or when the sun sets.
 - GENERAL_QUERY: General greetings, identity questions ("who are you"), chit-chat, or questions not covered by the other categories.
 
-Respond with ONLY the category name (e.g. CROP_QUERY). Do not write any other words.
+Respond with ONLY the category name (e.g. CURRENT_WEATHER). Do not write any other words.
 
 User Query: "${message}"
 
@@ -308,7 +359,11 @@ Category:`;
     const response = await result.response;
     const cleanedIntent = response.text().trim().toUpperCase();
 
-    const validIntents = ['SCHEME_QUERY', 'CROP_QUERY', 'WEATHER_QUERY', 'GENERAL_QUERY'];
+    const validIntents = [
+      'SCHEME_QUERY', 'CROP_QUERY', 'CURRENT_WEATHER', 'FORECAST',
+      'RAIN_FORECAST', 'TEMPERATURE', 'HUMIDITY', 'AIR_QUALITY',
+      'SUNRISE', 'SUNSET', 'GENERAL_QUERY'
+    ];
     if (validIntents.includes(cleanedIntent)) {
       console.log(`🤖 Intent Router: Gemini match: ${cleanedIntent} for "${message}"`);
       return cleanedIntent;

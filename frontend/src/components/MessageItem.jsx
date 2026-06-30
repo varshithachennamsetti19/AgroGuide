@@ -67,6 +67,11 @@ export default function MessageItem({ message }) {
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       {isForecast ? '5-Day Agriculture Forecast' : 'Live Farming Weather'}
                     </span>
+                    {!isForecast && weather.lastUpdated && (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px', fontStyle: 'italic' }}>
+                        Last updated: {new Date(weather.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
                   </div>
                   <span className="weather-badge">
                     {isForecast ? 'Forecast' : 'Current'}
@@ -158,6 +163,32 @@ export default function MessageItem({ message }) {
                           <span>Rainfall</span>
                         </span>
                         <span className="weather-metric-val">{weather.rainfall} mm</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          ☀️
+                          <span>UV Index</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.uvIndex !== undefined ? weather.uvIndex : '0.0'}</span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          🍃
+                          <span>Air Quality</span>
+                        </span>
+                        <span className="weather-metric-val" title={`AQI Index: ${weather.airQualityIndex || 2}`}>
+                          {weather.airQuality || 'Fair'}
+                        </span>
+                      </div>
+
+                      <div className="weather-metric-card">
+                        <span className="weather-metric-label">
+                          💧
+                          <span>Rain Prob.</span>
+                        </span>
+                        <span className="weather-metric-val">{weather.rainProbability !== undefined ? `${weather.rainProbability}%` : '0%'}</span>
                       </div>
                     </div>
 
