@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sun, Cloud, CloudRain, Droplets, Wind, Compass, Eye, Calendar, Sprout, ShieldAlert, Award, Search, RefreshCw, Layers } from 'lucide-react';
 
-export default function FarmerDashboard({ data, onRefresh, onDiseaseSearch }) {
+export default function FarmerDashboard({ data, onRefresh, onDiseaseSearch, onPromptClick }) {
   const [diseaseInput, setDiseaseInput] = useState('');
 
   if (!data) {
@@ -40,6 +40,46 @@ export default function FarmerDashboard({ data, onRefresh, onDiseaseSearch }) {
     const d = new Date(dateStr);
     return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
+
+  // Predefined prompt translation dictionary based on user preference (Part 10 & 12)
+  const lang = profile?.preferredLanguage || 'en-US';
+
+  const cardsData = {
+    'te-IN': [
+      { icon: '📈', title: 'మార్కెట్ ధరలు', desc: 'నేటి తాజా పంటల మార్కెట్ ధరలు సరిచూసుకోండి.', prompt: "నా ప్రాంతంలో నేటి పంటల మార్కెట్ ధరలు చూపించు" },
+      { icon: '📊', title: 'పంటల ధోరణి', desc: 'పంటల ధరలు మరియు దిగుబడి అంచనాలను విశ్లేషించండి.', prompt: "ఈ సీజన్ పంటల ధరల మరియు దిగుబడి అంచనాలను విశ్లేషించు" },
+      { icon: '📰', title: 'వ్యవసాయ వార్తలు', desc: 'ఐకార్ (ICAR) నుండి తాజా వ్యవసాయ వార్తలు తెలుసుకోండి.', prompt: "ఐకార్ (ICAR) నుండి తాజా వ్యవసాయ వార్తలు ఏమిటి?" },
+      { icon: '🌦', title: 'వాతావరణ నివేదిక', desc: 'వ్యవసాయానికి సంబంధించిన వాతావరణ సలహాలు పొందండి.', prompt: "వ్యవసాయానికి సంబంధించిన వివరణాత్మక వాతావరణ నివేదికను ఇవ్వు" },
+      { icon: '🏛', title: 'ప్రభుత్వ పథకాలు', desc: 'అందుబాటులో ఉన్న సహాయ పథకాలను కనుగొనండి.', prompt: "నా పంటకు అందుబాటులో ఉన్న ప్రభుత్వ పథకాలు చూపించు" },
+      { icon: '🌾', title: 'పంట సలహాలు', desc: 'పంటల సాగు మరియు సంరక్షణకు తగిన సూచనలు.', prompt: "నా పంట ప్రస్తుత దశకు తగిన వ్యవసాయ సలహాలను ఇవ్వు" }
+    ],
+    'hi-IN': [
+      { icon: '📈', title: 'बाजार भाव', desc: 'आज के फसल बाजार और मंडी भाव की जानकारी प्राप्त करें।', prompt: "मुझे मेरे क्षेत्र के लिए आज के फसल बाजार भाव दिखाएं" },
+      { icon: '📊', title: 'फसल रुझान', desc: 'फसल मूल्य और उपज के ऐतिहासिक रुझानों का विश्लेषण करें।', prompt: "इस सीजन के लिए फसल मूल्य और उपज के रुझानों का विश्लेषण करें" },
+      { icon: '📰', title: 'कृषि समाचार', desc: 'आईसीएआर (ICAR) से आज के मुख्य कृषि समाचार जानें।', prompt: "आईसीएआर (ICAR) से नवीनतम कृषि समाचार क्या हैं?" },
+      { icon: '🌦', title: 'मौसम सलाह', desc: 'खेती के लिए अनुकूल मौसम और वर्षा पूर्वानुमान प्राप्त करें।', prompt: "खेती के लिए विस्तृत मौसम सलाह रिपोर्ट दें" },
+      { icon: '🏛', title: 'सरकारी योजनाएं', desc: 'किसानों के लिए जारी नई सरकारी योजनाओं की सूची।', prompt: "मेरी फसल के लिए सक्रिय सरकारी योजनाएं दिखाएं" },
+      { icon: '🌾', title: 'फसल सलाह', desc: 'अपनी फसल की वर्तमान स्थिति के अनुसार सलाह लें।', prompt: "मेरी फसल की वर्तमान स्थिति के लिए कृषि सलाह दें" }
+    ],
+    'ta-IN': [
+      { icon: '📈', title: 'சந்தை விலை', desc: 'இன்றைய முக்கிய பயிர்களின் சந்தை விலையை அறிந்து கொள்ளுங்கள்.', prompt: "என் பகுதிக்கு இன்றைய பயிர் சந்தை விலையைக் காட்டு" },
+      { icon: '📊', title: 'பயிர் போக்குகள்', desc: 'விலை மற்றும் மகசூல் பற்றிய கணிப்புகளை ஆராயுங்கள்.', prompt: "இந்த பருவத்திற்கான பயிர் விலை மற்றும் மகசூல் போக்குகளை பகுப்பாய்வு செய்க" },
+      { icon: '📰', title: 'விவசாய செய்திகள்', desc: 'ICAR வழங்கும் சமீபத்திய விவசாய செய்திகள் மற்றும் அறிவிப்புகள்.', prompt: "ஐசிஏஆர் (ICAR) வழங்கும் சமீபத்திய விவசாய செய்திகள் என்ன?" },
+      { icon: '🌦', title: 'வானிலை நுண்ணறிவு', desc: 'விவசாயத்திற்கான வானிலை மற்றும் மழைப்பொழிவு அறிவுரைகள்.', prompt: "விவசாயத்திற்கான விரிவான வானிலை நுண்ணறிவு அறிக்கையை வழங்கவும்" },
+      { icon: '🏛', title: 'அரசு திட்டங்கள்', desc: 'விவசாயிகளுக்கான நடப்பு நலத்திட்டங்கள் மற்றும் மானியங்கள்.', prompt: "என் பயிர்க்கான அரசு திட்டங்களைக் காட்டு" },
+      { icon: '🌾', title: 'பயிர் ஆலோசனை', desc: 'பயிரின் தற்போதைய வளர்ச்சி நிலைக்கு தேவையான அறிவுரைகள்.', prompt: "என் பயிரின் தற்போதைய நிலைக்கு பயிர் ஆலோசனையை வழங்கவும்" }
+    ],
+    'en-US': [
+      { icon: '📈', title: 'Market Prices', desc: 'Check latest crop prices and mandi rates in your area.', prompt: "Show me today's crop market prices for my region" },
+      { icon: '📊', title: 'Crop Trends', desc: 'Analyze historical crop price trends and forecasts.', prompt: "Analyze crop price and yield trends for this season" },
+      { icon: '📰', title: 'Agricultural News', desc: 'Get latest agricultural updates and bulletins from ICAR.', prompt: "What is the latest agricultural news from ICAR?" },
+      { icon: '🌦', title: 'Weather Intel', desc: 'Get region-specific agricultural weather advisories.', prompt: "Give me a detailed weather intelligence report for farming" },
+      { icon: '🏛', title: 'Govt Schemes', desc: 'Discover active subsidies and government benefit schemes.', prompt: "Show me active government schemes for my crop" },
+      { icon: '🌾', title: 'Crop Advisory', desc: 'Get target recommendations for your current crop stage.', prompt: "Give me a crop advisory for my current stage of cultivation" }
+    ]
+  };
+
+  const intelligenceCards = cardsData[lang] || cardsData['en-US'];
 
   return (
     <div className="dashboard-scroll-container" style={{ padding: '20px', overflowY: 'auto', height: 'calc(100vh - 120px)' }}>
@@ -296,6 +336,35 @@ export default function FarmerDashboard({ data, onRefresh, onDiseaseSearch }) {
           </form>
         </div>
 
+      </div>
+
+      {/* Part 12 - New Dashboard Cards */}
+      <h3 style={{ fontSize: '1.1rem', color: '#fff', marginTop: '30px', marginBottom: '15px', fontWeight: 'bold' }}>
+        📈 Agricultural Intelligence Portal
+      </h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+        {intelligenceCards.map((card, idx) => (
+          <div
+            key={idx}
+            className="suggestion-card"
+            onClick={() => onPromptClick && onPromptClick(card.prompt)}
+            style={{
+              cursor: 'pointer',
+              padding: '16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              transition: 'all 0.2s ease-in-out'
+            }}
+          >
+            <div style={{ fontSize: '1.5rem' }}>{card.icon}</div>
+            <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>{card.title}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>{card.desc}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

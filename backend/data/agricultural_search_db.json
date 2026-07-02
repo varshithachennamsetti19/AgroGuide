@@ -1,0 +1,178 @@
+{
+  "mandiPrices": [
+    {
+      "crop": "Tomato",
+      "market": "Guntur Mandi, AP",
+      "price": 2400,
+      "previousPrice": 2250,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 150
+    },
+    {
+      "crop": "Tomato",
+      "market": "Kurnool Mandi, AP",
+      "price": 2200,
+      "previousPrice": 2300,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": -100
+    },
+    {
+      "crop": "Tomato",
+      "market": "Bowenpally Mandi, Hyderabad",
+      "price": 2500,
+      "previousPrice": 2400,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 100
+    },
+    {
+      "crop": "Tomato",
+      "market": "Azadpur Mandi, Delhi",
+      "price": 2800,
+      "previousPrice": 2900,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": -100
+    },
+    {
+      "crop": "Cotton",
+      "market": "Adoni Mandi, AP",
+      "price": 7200,
+      "previousPrice": 7100,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 100
+    },
+    {
+      "crop": "Cotton",
+      "market": "Warangal Mandi, Telangana",
+      "price": 7400,
+      "previousPrice": 7400,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 0
+    },
+    {
+      "crop": "Cotton",
+      "market": "Yavatmal Mandi, Maharashtra",
+      "price": 7100,
+      "previousPrice": 7250,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": -150
+    },
+    {
+      "crop": "Rice",
+      "market": "Nellore Mandi, AP",
+      "price": 3200,
+      "previousPrice": 3150,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 50
+    },
+    {
+      "crop": "Rice",
+      "market": "Suryapet Mandi, Telangana",
+      "price": 3100,
+      "previousPrice": 3000,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 100
+    },
+    {
+      "crop": "Rice",
+      "market": "Karnal Mandi, Punjab",
+      "price": 3600,
+      "previousPrice": 3650,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": -50
+    },
+    {
+      "crop": "Maize",
+      "market": "Nizamabad Mandi, Telangana",
+      "price": 2200,
+      "previousPrice": 2150,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 50
+    },
+    {
+      "crop": "Groundnut",
+      "market": "Anantapur Mandi, AP",
+      "price": 6800,
+      "previousPrice": 6700,
+      "unit": "Quintal",
+      "date": "2026-07-01",
+      "change": 100
+    }
+  ],
+  "historicalPrices": {
+    "Tomato": [
+      { "year": 2025, "month": 6, "avgPrice": 1900 },
+      { "year": 2025, "month": 7, "avgPrice": 2800 },
+      { "year": 2025, "month": 8, "avgPrice": 2500 },
+      { "year": 2025, "month": 9, "avgPrice": 1800 },
+      { "year": 2025, "month": 10, "avgPrice": 1500 },
+      { "year": 2025, "month": 11, "avgPrice": 1400 },
+      { "year": 2025, "month": 12, "avgPrice": 1600 }
+    ],
+    "Cotton": [
+      { "year": 2025, "month": 6, "avgPrice": 6900 },
+      { "year": 2025, "month": 7, "avgPrice": 7100 },
+      { "year": 2025, "month": 8, "avgPrice": 7300 },
+      { "year": 2025, "month": 9, "avgPrice": 7500 },
+      { "year": 2025, "month": 10, "avgPrice": 7200 },
+      { "year": 2025, "month": 11, "avgPrice": 7000 },
+      { "year": 2025, "month": 12, "avgPrice": 7150 }
+    ],
+    "Rice": [
+      { "year": 2025, "month": 6, "avgPrice": 2900 },
+      { "year": 2025, "month": 7, "avgPrice": 3000 },
+      { "year": 2025, "month": 8, "avgPrice": 3100 },
+      { "year": 2025, "month": 9, "avgPrice": 3050 },
+      { "year": 2025, "month": 10, "avgPrice": 2950 },
+      { "year": 2025, "month": 11, "avgPrice": 3150 },
+      { "year": 2025, "month": 12, "avgPrice": 3200 }
+    ]
+  },
+  "whitelistedArticles": [
+    {
+      "sourceName": "Indian Council of Agricultural Research (ICAR)",
+      "url": "https://icar.org.in/news/crop-yield-improvement-advisory-2026",
+      "title": "Advisory for Sowing and Crop Production 2026",
+      "publishedDate": "2026-05-12",
+      "content": "ICAR advises sowing high-yielding pest-resistant seeds like IR64 for rice and hybrid varieties for cotton. Balanced fertilizer usage with nitrogen and potash is recommended to boost yields by 15%. In case of humid weather, monitor closely for blast disease in paddy and pink bollworm in cotton."
+    },
+    {
+      "sourceName": "Ministry of Agriculture & Farmers Welfare (Farmer.gov.in)",
+      "url": "https://farmer.gov.in/advisory/pest-disease-control",
+      "title": "National Pest and Crop Disease Control Guidelines",
+      "publishedDate": "2026-04-20",
+      "content": "For cotton pink bollworm control, set up 5 pheromone traps per acre. In tomato crops, handpick fruit borer larvae and use marigold as a trap crop (1 row of marigold for every 16 rows of tomatoes) to naturally repel caterpillars. If severe, apply Bacillus thuringiensis."
+    },
+    {
+      "sourceName": "PM Kisan Samman Nidhi (PMKisan)",
+      "url": "https://pmkisan.gov.in/status/eligibility-guidelines",
+      "title": "PM-Kisan Income Support Scheme Guidelines",
+      "publishedDate": "2026-02-10",
+      "content": "The PM Kisan scheme provides Rs. 6000 per year in three equal installments of Rs. 2000 to all eligible landholding farmer families. All institutional landholders, government employees, and income-tax payers are excluded from receiving benefit under the DBT scheme."
+    },
+    {
+      "sourceName": "Soil Health Card Portal (SoilHealth)",
+      "url": "https://soilhealth.dac.gov.in/recommendations/soil-nutrients",
+      "title": "Nutrient Management and Soil Health Guidelines",
+      "publishedDate": "2026-03-01",
+      "content": "Perform soil testing once every 2 years. To correct acidic soil (pH < 6.0), add lime. To correct alkaline soil (pH > 8.0), add gypsum. Always align Nitrogen, Phosphorus, Potassium (NPK) fertilizers with recommendations on your Soil Health Card to avoid soil degradation."
+    },
+    {
+      "sourceName": "Indian Meteorological Department (IMD)",
+      "url": "https://imd.gov.in/monsoon/monsoon-forecast-2026",
+      "title": "National Monsoon Forecast and Weather Outlook",
+      "publishedDate": "2026-05-15",
+      "content": "IMD forecasts normal Southwest Monsoon rainfall (96-104% LPA) across India for 2026. Central India and southern peninsula will receive regular showers in July and August. Cotton and rice sowing should be completed in June. Check local forecasts daily before spraying chemicals."
+    }
+  ]
+}

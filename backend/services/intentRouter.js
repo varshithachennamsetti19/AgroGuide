@@ -9,135 +9,136 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * Classifies the query using regex rules. Returns null if no rule matches.
  */
 function classifyWithRules(message) {
-  const msg = message.toLowerCase();
-  
-  // 1. Air Quality Check
+  const msg = message.toLowerCase().trim();
+
+  // 1. Insurance Check
   if (
-    msg.includes('air quality') || msg.includes('aqi') || msg.includes('pollution') || msg.includes('smog') || msg.includes('smoke') ||
-    msg.includes('గాలి నాణ్యత') || msg.includes('కాలుష్యం') || msg.includes('వాయు కాలుష్యం') ||
-    msg.includes('हवा की गुणवत्ता') || msg.includes('प्रदूषण') || msg.includes('वायु प्रदूषण')
+    msg.includes('insurance') || msg.includes('bima') || msg.includes('claim') || msg.includes('fasal bima') ||
+    msg.includes('భీమా') || msg.includes('ఇన్సూరెన్స్') ||
+    msg.includes('बीमा') || msg.includes('फसल बीमा') ||
+    msg.includes('காப்பீடு')
   ) {
-    return 'AIR_QUALITY';
+    return 'INSURANCE_QUERY';
   }
 
-  // 2. Sunrise Check
+  // 2. Loan Check
   if (
-    msg.includes('sunrise') || msg.includes('sun rise') || msg.includes('morning sun') ||
-    msg.includes('సూర్యోదయం') ||
-    msg.includes('सूर्योदय') || msg.includes('सूरज उगना')
+    msg.includes('loan') || msg.includes('credit card') || msg.includes('kcc') || msg.includes('debt') || msg.includes('interest') ||
+    msg.includes('రుణం') || msg.includes('రుణాలు') || msg.includes('అప్పు') || msg.includes('వడ్డీ') ||
+    msg.includes('ऋण') || msg.includes('कर्ज') || msg.includes('ब्याज') ||
+    msg.includes('கடன்')
   ) {
-    return 'SUNRISE';
+    return 'LOAN_QUERY';
   }
 
-  // 3. Sunset Check
+  // 3. Scheme Check
   if (
-    msg.includes('sunset') || msg.includes('sun set') || msg.includes('evening sun') ||
-    msg.includes('సూర్యాస్తమయం') ||
-    msg.includes('सूर्यास्त') || msg.includes('सूरज डूबना')
-  ) {
-    return 'SUNSET';
-  }
-
-  // 4. Humidity Check
-  if (
-    msg.includes('humidity') || msg.includes('moisture') || msg.includes('damp') || msg.includes('dampness') || msg.includes('humid') ||
-    msg.includes('తేమ') || msg.includes('గాలిలో తేమ') ||
-    msg.includes('नमी') || msg.includes('उमस')
-  ) {
-    return 'HUMIDITY';
-  }
-
-  // 5. Rain Forecast Check
-  if (
-    msg.includes('rain') || msg.includes('rainy') || msg.includes('shower') || msg.includes('drizzle') || msg.includes('precipitation') || msg.includes('storm') || msg.includes('raining') || msg.includes('downpour') ||
-    msg.includes('వర్షం') || msg.includes('వర్షాలు') || msg.includes('వర్షపాతం') || msg.includes('వాన') || msg.includes('కురుస్తుంది') || msg.includes('చినుకులు') ||
-    msg.includes('बारिश') || msg.includes('वर्षा') || msg.includes('पानी गिरना') || msg.includes('बरसत')
-  ) {
-    return 'RAIN_FORECAST';
-  }
-
-  // 6. Temperature Check
-  if (
-    msg.includes('temperature') || msg.includes('temp') || msg.includes('hot') || msg.includes('cold') || msg.includes('degree') || msg.includes('degrees') || msg.includes('warmth') || msg.includes('heat') ||
-    msg.includes('ఉష్ణోగ్రత') || msg.includes('వేడి') || msg.includes('చలి') || msg.includes('ఎండ') ||
-    msg.includes('तापमान') || msg.includes('गर्मी') || msg.includes('ठंडी') || msg.includes('डिग्री') || msg.includes('धूप')
-  ) {
-    return 'TEMPERATURE';
-  }
-
-  // 7. General Forecast Check
-  if (
-    msg.includes('forecast') || msg.includes('weekly') || msg.includes('5 day') || msg.includes('tomorrow') || msg.includes('next week') || msg.includes('outlook') ||
-    msg.includes('రేపు') || msg.includes('ముందు చూపు') || msg.includes('వాతావరణ సూచన') ||
-    msg.includes('पूर्वानुमान') || msg.includes('कल का मौसम') || msg.includes('कल मौसम')
-  ) {
-    return 'FORECAST';
-  }
-
-  // 8. General Current Weather Check (fallback weather)
-  if (
-    msg.includes('weather') || msg.includes('climate') || msg.includes('wind') || msg.includes('temp') ||
-    msg.includes('వాతావరణం') || msg.includes('గాలి') || msg.includes('క్లైమేట్') ||
-    msg.includes('मौसम') || msg.includes('हवा') || msg.includes('जलवायु')
-  ) {
-    return 'CURRENT_WEATHER';
-  }
-
-  // Scheme indicators
-  if (
-    msg.includes('pm kisan') || 
-    msg.includes('fasal bima') || 
-    msg.includes('rythu bharosa') || 
-    msg.includes('credit card') || 
-    msg.includes('kcc') || 
-    msg.includes('soil health') || 
-    msg.includes('scheme') ||
-    msg.includes('yojana') ||
-    msg.includes('పథక') ||       // Telugu: matches పథకం, పథకాలు, పథకాల, etc.
-    msg.includes('యोजना')          // Hindi: yojana
+    msg.includes('pm kisan') || msg.includes('rythu bharosa') || msg.includes('scheme') || msg.includes('yojana') || msg.includes('subsidy') ||
+    msg.includes('పథకం') || msg.includes('పథకాలు') || msg.includes('భరోసా') ||
+    msg.includes('योजना') || msg.includes('अनुदान') ||
+    msg.includes('திட்டம்') || msg.includes('திட்டங்கள்') || msg.includes('மானியம்')
   ) {
     return 'SCHEME_QUERY';
   }
 
-  // Crop indicators
+  // 4. Disease Check
   if (
-    msg.includes('rice') || 
-    msg.includes('cotton') || 
-    msg.includes('maize') || 
-    msg.includes('groundnut') || 
-    msg.includes('tomato') || 
-    msg.includes('sugarcane') ||
-    msg.includes('cultivation') ||
-    msg.includes('pest') ||
-    msg.includes('fertilizer') ||
-    msg.includes('వరి') ||        // Telugu: rice
-    msg.includes('త్తి') ||        // Telugu: cotton
-    msg.includes('మొక్కజొన్న') ||   // Telugu: maize
-    msg.includes('వేరుశనగ') ||      // Telugu: groundnut
-    msg.includes('టమోటా') ||       // Telugu: tomato
-    msg.includes('చెరకు') ||        // Telugu: sugarcane
-    msg.includes('धान') ||         // Hindi: rice
-    msg.includes('कपास') ||        // Hindi: cotton
-    msg.includes('मक्का') ||       // Hindi: maize
-    msg.includes('मूंगफली') ||      // Hindi: groundnut
-    msg.includes('टमाटर') ||       // Hindi: tomato
-    msg.includes('गन्ना')          // Hindi: sugarcane
+    msg.includes('disease') || msg.includes('yellow spots') || msg.includes('wilting') || msg.includes('fungal') || msg.includes('blight') || msg.includes('rot') || msg.includes('spots') ||
+    msg.includes('తెగులు') || msg.includes('తెగుళ్ళు') || msg.includes('కుళ్లు') ||
+    msg.includes('बीमारी') || msg.includes('रोग') || msg.includes('सड़न') || msg.includes('पीला धब्बा') ||
+    msg.includes('நோய்') || msg.includes('நோய்கள்') || msg.includes('அழுகல்')
+  ) {
+    return 'DISEASE_QUERY';
+  }
+
+  // 5. Pest Check
+  if (
+    msg.includes('pest') || msg.includes('insect') || msg.includes('worm') || msg.includes('pesticide') || msg.includes('insecticide') || msg.includes('caterpillar') || msg.includes('bug') ||
+    msg.includes('పురుగు') || msg.includes('పురుగులు') || msg.includes('కీటక') || msg.includes('పురుగుల మందు') ||
+    msg.includes('कीट') || msg.includes('कीड़ा') || msg.includes('कीटनाशक') ||
+    msg.includes('பூச்சி') || msg.includes('பூச்சிகள்') || msg.includes('பூச்சிக்கொல்லி')
+  ) {
+    return 'PEST_QUERY';
+  }
+
+  // 6. Fertilizer Check
+  if (
+    msg.includes('fertilizer') || msg.includes('urea') || msg.includes('potash') || msg.includes('manure') || msg.includes('compost') || msg.includes('phosphate') || msg.includes('nitrogen') || msg.includes('npk') ||
+    msg.includes('ఎరువు') || msg.includes('ఎరువులు') || msg.includes('యూరియా') ||
+    msg.includes('खाद') || msg.includes('उर्वरक') || msg.includes('यूरिया') ||
+    msg.includes('உரம்') || msg.includes('உரங்கள்') || msg.includes('யூரியோ')
+  ) {
+    return 'FERTILIZER_QUERY';
+  }
+
+  // 7. Irrigation Check
+  if (
+    msg.includes('irrigation') || msg.includes('watering') || msg.includes('drip') || msg.includes('sprinkler') || msg.includes('borewell') || msg.includes('canal') || msg.includes('pump') ||
+    msg.includes('నీటి పారుదల') || msg.includes('నీరు పెట్టడం') || msg.includes('డ్రిప్') || msg.includes('స్పింక్లర్') ||
+    msg.includes('सिंचाई') || msg.includes('सिंचन') || msg.includes('टपकन') ||
+    msg.includes('பாசனம்') || msg.includes('சொட்டுநீர்')
+  ) {
+    return 'IRRIGATION_QUERY';
+  }
+
+  // 8. Soil Check
+  if (
+    msg.includes('soil') || msg.includes('sand') || msg.includes('clay') || msg.includes('loamy') || msg.includes('soil health') || msg.includes('earth') || msg.includes('acidic') || msg.includes('alkaline') || msg.includes('ph') ||
+    msg.includes('నేల') || msg.includes('మట్టి') || msg.includes('నేల పరీక్ష') ||
+    msg.includes('मिट्टी') || msg.includes('मृदा') ||
+    msg.includes('மண்') || msg.includes('மண் பரிசோதனை')
+  ) {
+    return 'SOIL_QUERY';
+  }
+
+  // 9. Market Check
+  if (
+    msg.includes('market price') || msg.includes('mandi') || msg.includes('price') || msg.includes('prices') || msg.includes('msp') || msg.includes('rate') ||
+    msg.includes('మార్కెట్ ధర') || msg.includes('ధర') || msg.includes('ధరలు') ||
+    msg.includes('बाजार भाव') || msg.includes('मंडी भाव') || msg.includes('कीमत') || msg.includes('दाम') ||
+    msg.includes('சந்தை விலை') || msg.includes('விலை')
+  ) {
+    return 'MARKET_QUERY';
+  }
+
+  // 10. Livestock Check
+  if (
+    msg.includes('livestock') || msg.includes('cow') || msg.includes('cows') || msg.includes('buffalo') || msg.includes('goat') || msg.includes('sheep') || msg.includes('poultry') || msg.includes('cattle') || msg.includes('dairy') || msg.includes('animal') ||
+    msg.includes('పశువులు') || msg.includes('ఆవు') || msg.includes('గేదె') || msg.includes('మేక') || msg.includes('గొర్రె') || msg.includes('కోళ్లు') ||
+    msg.includes('पशुधन') || msg.includes('गाय') || msg.includes('भैंस') || msg.includes('बकरी') || msg.includes('भेड़') || msg.includes('मुर्गीपालन') ||
+    msg.includes('கால்நடை') || msg.includes('பசு') || msg.includes('எருமை') || msg.includes('ஆடு') || msg.includes('கோழி')
+  ) {
+    return 'LIVESTOCK_QUERY';
+  }
+
+  // 11. Weather Check
+  if (
+    msg.includes('weather') || msg.includes('forecast') || msg.includes('rain') || msg.includes('monsoon') || msg.includes('temperature') || msg.includes('temp') || msg.includes('humidity') || msg.includes('aqi') || msg.includes('sunrise') || msg.includes('sunset') ||
+    msg.includes('వాతావరణం') || msg.includes('వర్షం') || msg.includes('కురుస్తుంది') || msg.includes('ఉష్ణోగ్రత') ||
+    msg.includes('मौसम') || msg.includes('बारिश') || msg.includes('वर्षा') || msg.includes('तापमान') ||
+    msg.includes('வானிலை') || msg.includes('மழை')
+  ) {
+    return 'WEATHER_QUERY';
+  }
+
+  // 12. Crop Check
+  if (
+    msg.includes('rice') || msg.includes('cotton') || msg.includes('maize') || msg.includes('groundnut') || msg.includes('tomato') || msg.includes('sugarcane') || msg.includes('chilli') || msg.includes('wheat') || msg.includes('sowing') || msg.includes('harvest') || msg.includes('cultivation') ||
+    msg.includes('వరి') || msg.includes('ప్రత్తి') || msg.includes('మొక్కజొన్న') || msg.includes('వేరుశనగ') || msg.includes('టమోటా') || msg.includes('చెరకు') || msg.includes('నాట్లు') || msg.includes('సాగు') ||
+    msg.includes('धान') || msg.includes('कपास') || msg.includes('मक्का') || msg.includes('मूंगफली') || msg.includes('टमाटर') || msg.includes('गन्ना') ||
+    msg.includes('நெல்') || msg.includes('பருத்தி') || msg.includes('சோளம்') || msg.includes('நிலக்கடலை') || msg.includes('தக்காளி') || msg.includes('கரும்பு')
   ) {
     return 'CROP_QUERY';
   }
 
-  // General profiling / greeting indicators
+  // 13. General Greetings / Identity (mapped to GENERAL_AGRICULTURE)
   if (
-    msg.includes('who are you') ||
-    msg.includes('your name') ||
-    msg.includes('hello') ||
-    msg.includes('hi') ||
-    msg.includes('namaste') ||
-    msg.includes('హలో') ||
-    msg.includes('నమస్కారం') ||
-    msg.includes('नमस्ते')
+    msg.includes('hello') || msg.includes('hi') || msg.includes('namaste') || msg.includes('who are you') || msg.includes('your name') || msg.includes('how are you') ||
+    msg.includes('హలో') || msg.includes('నమస్కారం') ||
+    msg.includes('नमस्ते') || msg.includes('प्रणाम') ||
+    msg.includes('வணக்கம்')
   ) {
-    return 'GENERAL_QUERY';
+    return 'GENERAL_AGRICULTURE';
   }
 
   return null;
@@ -145,47 +146,37 @@ function classifyWithRules(message) {
 
 // Predefined list of known cities for fast lookup (in English, Telugu, and Hindi)
 const CITY_MAPPING = [
-  { en: 'vijayawada', te: 'విజయవాడ', hi: 'विजयवाड़ा' },
-  { en: 'hyderabad', te: 'హైదరాబాద్', hi: 'हैदराबाद' },
-  { en: 'guntur', te: 'గుంటూరు', hi: 'गुंटूर' },
-  { en: 'nellore', te: 'నెల్లూరు', hi: 'नेलोर' },
-  { en: 'visakhapatnam', te: 'విశాఖపట్నం', hi: 'विशाखापत्तनम' },
-  { en: 'kurnool', te: 'కర్నూలు', hi: 'कर्नूल' },
-  { en: 'tirupati', te: 'తిరుపతి', hi: 'तिरुपति' },
-  { en: 'warangal', te: 'వరంగల్', hi: 'वारंगल' },
-  { en: 'delhi', te: 'ఢిల్లీ', hi: 'दिल्ली' },
-  { en: 'mumbai', te: 'ముంబై', hi: 'मुंबई' },
-  { en: 'bangalore', te: 'బెంగళూరు', hi: 'बैंगलोर' },
-  { en: 'bengaluru', te: 'బెంగళూరు', hi: 'बेंगलुरु' },
-  { en: 'chennai', te: 'చెన్నై', hi: 'चेन्नई' }
+  { en: 'Vijayawada', te: 'విజయవాడ', hi: 'विजयवाड़ा' },
+  { en: 'Hyderabad', te: 'హైదరాబాద్', hi: 'हैदराबाद' },
+  { en: 'Guntur', te: 'గుంటూరు', hi: 'गुंटूर' },
+  { en: 'Nellore', te: 'నెల్లూరు', hi: 'नेलोर' },
+  { en: 'Visakhapatnam', te: 'విశాఖపట్నం', hi: 'विशाखापत्तनम' },
+  { en: 'Kurnool', te: 'కర్నూలు', hi: 'कर्नूल' },
+  { en: 'Tirupati', te: 'తిరుపతి', hi: 'तिरुपति' },
+  { en: 'Warangal', te: 'వరంగల్', hi: 'वारंगल' },
+  { en: 'Delhi', te: 'ఢిల్లీ', hi: 'दिल्ली' },
+  { en: 'Mumbai', te: 'ముంబై', hi: 'मुंबई' },
+  { en: 'Bangalore', te: 'బెంగళూరు', hi: 'बैंगलोर' },
+  { en: 'Bengaluru', te: 'బెంగళూరు', hi: 'बेंगलुरु' },
+  { en: 'Chennai', te: 'చెన్నై', hi: 'चेन्नई' }
 ];
 
-/**
- * Helper to extract city names from user query (supporting English, Hindi, and Telugu suffixes)
- * @param {string} message - User query text
- * @returns {string|null} Extracted city name in English or null if not found
- */
 export function extractCity(message) {
   if (!message) return null;
   const msg = message.toLowerCase().trim();
 
-  // 1. Direct checks for predefined cities (handles Telugu suffix "లో" (lo) and Hindi "में" (mein) or "का" (ka))
   for (const cityObj of CITY_MAPPING) {
-    // English match
-    if (msg.includes(cityObj.en)) {
-      return cityObj.en.charAt(0).toUpperCase() + cityObj.en.slice(1);
+    if (msg.includes(cityObj.en.toLowerCase())) {
+      return cityObj.en;
     }
-    // Telugu match (e.g. గుంటూరులో, విజయవాడలో)
     if (msg.includes(cityObj.te) || msg.includes(cityObj.te + 'లో')) {
-      return cityObj.en.charAt(0).toUpperCase() + cityObj.en.slice(1);
+      return cityObj.en;
     }
-    // Hindi match (e.g. हैदराबाद का, हैदराबाद में)
     if (msg.includes(cityObj.hi)) {
-      return cityObj.en.charAt(0).toUpperCase() + cityObj.en.slice(1);
+      return cityObj.en;
     }
   }
 
-  // 2. Regex fallbacks for English syntax ("weather in Guntur", "weather at Vijayawada")
   const englishPatterns = [
     /\bin\s+([a-zA-Z\s]+)/i,
     /\bat\s+([a-zA-Z\s]+)/i,
@@ -197,8 +188,7 @@ export function extractCity(message) {
   for (const pattern of englishPatterns) {
     const match = msg.match(pattern);
     if (match && match[1]) {
-      const candidate = match[1].trim().split(/\s+/)[0]; // get first word
-      // Filter out common non-city words that might trigger
+      const candidate = match[1].trim().split(/\s+/)[0];
       const stopWords = ['today', 'tomorrow', 'this', 'the', 'my', 'your', 'his', 'her', 'a', 'an'];
       if (!stopWords.includes(candidate) && candidate.length > 2) {
         return candidate.charAt(0).toUpperCase() + candidate.slice(1);
@@ -209,11 +199,6 @@ export function extractCity(message) {
   return null;
 }
 
-/**
- * Detects if the user query is looking for current weather or a future forecast.
- * @param {string} message - User query text
- * @returns {string} 'forecast' or 'current'
- */
 export function detectQueryTime(message) {
   if (!message) return 'current';
   const msg = message.toLowerCase();
@@ -223,10 +208,10 @@ export function detectQueryTime(message) {
     msg.includes('forecast') ||
     msg.includes('5 day') ||
     msg.includes('next week') ||
-    msg.includes('రేపు') || // Telugu: tomorrow
-    msg.includes('ముందు చూపు') || // Telugu: forecast/outlook
-    msg.includes('कल') || // Hindi: tomorrow
-    msg.includes('पूर्वानुमान') // Hindi: forecast
+    msg.includes('రేపు') ||
+    msg.includes('ముందు చూపు') ||
+    msg.includes('कल') ||
+    msg.includes('पूर्वानुमान')
   ) {
     return 'forecast';
   }
@@ -234,11 +219,6 @@ export function detectQueryTime(message) {
   return 'current';
 }
 
-/**
- * Checks if the user message is about seasonal or yearly rainfall forecasts.
- * @param {string} message - User query text
- * @returns {boolean}
- */
 export function isSeasonalQuery(message) {
   if (!message) return false;
   const msg = message.toLowerCase();
@@ -249,15 +229,15 @@ export function isSeasonalQuery(message) {
     msg.includes('annual') ||
     msg.includes('this year') ||
     msg.includes('year\'s rain') ||
-    msg.includes('వర్షాలు') ||        // Telugu: rains
-    msg.includes('ఈ సంవత్సరం') ||     // Telugu: this year
-    msg.includes('ఈ ఏడాది') ||         // Telugu: this year
-    msg.includes('వర్షపాతం') ||      // Telugu: rainfall
-    msg.includes('వర్షాకాలం') ||      // Telugu: monsoon/rainy season
-    msg.includes('इस साल') ||         // Hindi: this year
-    msg.includes('बारिश कैसी') ||      // Hindi: how is rain
-    msg.includes('सालाना') ||          // Hindi: yearly
-    msg.includes('मानसून')            // Hindi: monsoon
+    msg.includes('వర్షాలు') ||
+    msg.includes('ఈ సంవత్సరం') ||
+    msg.includes('ఈ ఏడాది') ||
+    msg.includes('వర్షపాతం') ||
+    msg.includes('వర్షాకాలం') ||
+    msg.includes('इस साल') ||
+    msg.includes('बारिश कैसी') ||
+    msg.includes('सालाना') ||
+    msg.includes('मानसून')
   );
 }
 
@@ -271,11 +251,6 @@ const STATE_MAPPING = [
   { en: 'Punjab', aliases: ['punjab', 'పంజాబ్', 'पंजाब'] }
 ];
 
-/**
- * Helper to extract Indian state names from query (supporting English, Hindi, and Telugu aliases/suffixes)
- * @param {string} message - User query text
- * @returns {string|null} Extracted state name in English or null if not found
- */
 export function extractState(message) {
   if (!message) return null;
   const msg = message.toLowerCase().trim();
@@ -288,7 +263,6 @@ export function extractState(message) {
     }
   }
 
-  // Regex check for "state of X" or "in X" where X might be a state
   const statePatterns = [
     /state\s+of\s+([a-zA-Z\s]+)/i,
     /in\s+([a-zA-Z\s]+)/i,
@@ -299,7 +273,6 @@ export function extractState(message) {
     const match = msg.match(pattern);
     if (match && match[1]) {
       const candidate = match[1].trim().split(/\s+/)[0];
-      // Check if candidate matches any known state name partially
       for (const stateObj of STATE_MAPPING) {
         if (stateObj.en.toLowerCase().includes(candidate.toLowerCase()) && candidate.length > 3) {
           return stateObj.en;
@@ -314,10 +287,10 @@ export function extractState(message) {
 /**
  * Route the user request to determine the appropriate intent
  * @param {string} message - User query text
- * @returns {Promise<string>} Intent classification: SCHEME_QUERY, CROP_QUERY, WEATHER_QUERY, or GENERAL_QUERY
+ * @returns {Promise<string>} Classified Intent label
  */
 export async function detectIntent(message) {
-  // 1. Fast regex classification
+  // 1. Fast rules-based check
   const ruleIntent = classifyWithRules(message);
   if (ruleIntent) {
     console.log(`🤖 Intent Router: Rules-based match: ${ruleIntent} for "${message}"`);
@@ -329,27 +302,31 @@ export async function detectIntent(message) {
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
-        maxOutputTokens: 500,
+        maxOutputTokens: 50,
         temperature: 0.1,
       }
     });
 
     const classificationPrompt = `
-You are an intent classifier for a smart agricultural voice assistant named AgroGuide.
+You are an intent classifier for AgroGuide, a smart agricultural chatbot.
 Categorize the incoming user query into exactly one of these categories:
-- SCHEME_QUERY: Questions about agricultural subsidies, benefits, or government schemes (e.g. PM Kisan, Rythu Bharosa, Fasal Bima).
-- CROP_QUERY: Questions about farming tips, sowing, watering, spacing, or pest control for specific crops.
-- CURRENT_WEATHER: Questions about current weather today, climate now, or general weather queries.
-- FORECAST: Questions about future weather forecasts, 5-day outlook, or tomorrow's weather.
-- RAIN_FORECAST: Questions about rain, precipitation, storms, or showers.
-- TEMPERATURE: Questions about heat, cold, degree, temperature.
-- HUMIDITY: Questions about humidity or moisture in the air.
-- AIR_QUALITY: Questions about air pollution, air quality index, or breathing conditions.
-- SUNRISE: Questions about sunrise times or when the sun rises.
-- SUNSET: Questions about sunset times or when the sun sets.
-- GENERAL_QUERY: General greetings, identity questions ("who are you"), chit-chat, or questions not covered by the other categories.
+- SCHEME_QUERY: Government schemes, subsidies, PM Kisan, Rythu Bharosa, benefits.
+- CROP_QUERY: Planting details, sowing seasons, spacing, yields, crop guides.
+- WEATHER_QUERY: Forecasts, rain conditions, temperatures, humidity, monsoon reports.
+- SOIL_QUERY: Soil quality, testing, pH values, soil types.
+- IRRIGATION_QUERY: Drip irrigation, sprinkler systems, watering schedules.
+- FERTILIZER_QUERY: Fertilizer schedules, urea, NPK ratio, organic manure.
+- PEST_QUERY: Pests, insects, caterpillars, pesticide treatments.
+- DISEASE_QUERY: Plant diseases, leaf spots, wilting, fungicide control.
+- MARKET_QUERY: Market rates, crop selling prices, mandi prices, MSP.
+- LIVESTOCK_QUERY: Cattle care, cow/buffalo health, milk yield, poultry, goat farming.
+- LOAN_QUERY: Agricultural loans, bank credit, KCC schemes.
+- INSURANCE_QUERY: Crop insurance, PM Fasal Bima claims.
+- GENERAL_AGRICULTURE: Greetings, greetings in local languages, identity checks ("who are you").
+- OUT_OF_SCOPE: Queries completely unrelated to agriculture, weather, or farming.
+- UNKNOWN: Ambiguous/unclear queries.
 
-Respond with ONLY the category name (e.g. CURRENT_WEATHER). Do not write any other words.
+Respond with ONLY the category name. Do not write any other words.
 
 User Query: "${message}"
 
@@ -360,9 +337,10 @@ Category:`;
     const cleanedIntent = response.text().trim().toUpperCase();
 
     const validIntents = [
-      'SCHEME_QUERY', 'CROP_QUERY', 'CURRENT_WEATHER', 'FORECAST',
-      'RAIN_FORECAST', 'TEMPERATURE', 'HUMIDITY', 'AIR_QUALITY',
-      'SUNRISE', 'SUNSET', 'GENERAL_QUERY'
+      'SCHEME_QUERY', 'CROP_QUERY', 'WEATHER_QUERY', 'SOIL_QUERY',
+      'IRRIGATION_QUERY', 'FERTILIZER_QUERY', 'PEST_QUERY', 'DISEASE_QUERY',
+      'MARKET_QUERY', 'LIVESTOCK_QUERY', 'LOAN_QUERY', 'INSURANCE_QUERY',
+      'GENERAL_AGRICULTURE', 'OUT_OF_SCOPE', 'UNKNOWN'
     ];
     if (validIntents.includes(cleanedIntent)) {
       console.log(`🤖 Intent Router: Gemini match: ${cleanedIntent} for "${message}"`);
@@ -372,6 +350,6 @@ Category:`;
     console.error("Intent Router error:", error);
   }
 
-  console.log(`🤖 Intent Router: Fallback to GENERAL_QUERY for "${message}"`);
-  return 'GENERAL_QUERY';
+  console.log(`🤖 Intent Router: Fallback to UNKNOWN for "${message}"`);
+  return 'UNKNOWN';
 }

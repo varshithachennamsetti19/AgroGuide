@@ -1,14 +1,16 @@
 import express from 'express';
 import { generateAndSaveChat, getHistory, deleteChat, clearHistory } from '../controllers/chatController.js';
 import { protect } from '../middleware/auth.js';
+import { validateInput } from '../middleware/inputValidator.js';
+import { chatRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
 // Apply auth middleware to protect all chat routes
 router.use(protect);
 
-// POST /api/chat - Generate Gemini response and save to MongoDB
-router.post('/chat', generateAndSaveChat);
+// POST /api/chat - Generate Gemini response, run security checks and save
+router.post('/chat', chatRateLimiter, validateInput, generateAndSaveChat);
 
 // POST /api/chat/upload - Stub endpoint for future image-based crop disease diagnosis
 router.post('/chat/upload', (req, res) => {

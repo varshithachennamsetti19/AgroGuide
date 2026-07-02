@@ -1,27 +1,19 @@
 import mongoose from 'mongoose';
 
-const chatSchema = new mongoose.Schema(
+const searchHistorySchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
-    question: {
+    query: {
       type: String,
       required: true,
     },
-    answer: {
+    intent: {
       type: String,
       required: true,
-    },
-    language: {
-      type: String,
-      required: true,
-      default: 'en-US',
-    },
-    weatherData: {
-      type: mongoose.Schema.Types.Mixed,
     },
     sources: [
       {
@@ -32,11 +24,17 @@ const chatSchema = new mongoose.Schema(
         confidenceScore: { type: Number, default: 100 }
       }
     ],
+    confidence: {
+      type: String,
+      enum: ['High', 'Medium', 'Low'],
+      required: true,
+      default: 'High'
+    }
   },
   {
-    timestamps: true,
+    timestamps: { createdAt: 'timestamp', updatedAt: false }
   }
 );
 
-const Chat = mongoose.model('Chat', chatSchema);
-export default Chat;
+const SearchHistory = mongoose.model('SearchHistory', searchHistorySchema);
+export default SearchHistory;

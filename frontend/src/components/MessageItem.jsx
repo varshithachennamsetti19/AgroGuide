@@ -58,6 +58,40 @@ export default function MessageItem({ message }) {
           <div style={{ flex: 1, paddingTop: !isUser ? '3px' : '0', wordBreak: 'break-word' }}>
             <div>{message.text}</div>
 
+            {/* RENDER SOURCES IF AVAILABLE (Part 3) */}
+            {!isUser && message.sources && Array.isArray(message.sources) && message.sources.length > 0 && (
+              <div className="sources-container" style={{
+                marginTop: '12px',
+                borderTop: '1px dashed var(--border-light)',
+                paddingTop: '8px',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '6px', color: 'var(--accent-cyan)' }}>
+                  🔗 Sources:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {message.sources.map((src, idx) => (
+                    <div key={idx} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      <a 
+                        href={src.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontWeight: '500' }}
+                      >
+                        {src.sourceName}
+                      </a>
+                      {src.publishedDate && (
+                        <span>({new Date(src.publishedDate).toLocaleDateString()})</span>
+                      )}
+                      <span>• Confidence: {src.confidenceScore || 100}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
             {/* RENDER WEATHER INTELLIGENCE CARD */}
             {!isUser && weather && (
               <div className="weather-card">

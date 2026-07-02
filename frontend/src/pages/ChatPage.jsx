@@ -163,6 +163,11 @@ export default function ChatPage() {
     handleSend(symptoms);
   };
 
+  const handlePromptClick = (promptText) => {
+    setActiveTab('chat');
+    handleSend(promptText);
+  };
+
   const handleEditLocation = async () => {
     const newCity = window.prompt("Enter your preferred city name for weather updates:", user?.preferredCity || user?.district || "");
     if (newCity !== null && newCity.trim() !== "") {
@@ -204,7 +209,8 @@ export default function ChatPage() {
           role: 'model',
           text: chat.answer,
           timestamp: chat.createdAt,
-          weatherData: chat.weatherData // load weather data from history
+          weatherData: chat.weatherData,
+          sources: chat.sources
         });
       });
       setMessages(loadedMessages);
@@ -434,7 +440,8 @@ export default function ChatPage() {
               role: 'model',
               text: savedChat.answer,
               timestamp: savedChat.createdAt,
-              weatherData: savedChat.weatherData || result.weatherData // bind weatherData
+              weatherData: savedChat.weatherData || result.weatherData,
+              sources: savedChat.sources || result.sources
             }
           ];
         });
@@ -716,6 +723,7 @@ export default function ChatPage() {
             data={dashboardData} 
             onRefresh={loadDashboard} 
             onDiseaseSearch={handleDiseaseSearch} 
+            onPromptClick={handlePromptClick} 
           />
         ) : assistantMode === 'voice' ? (
           <section className="voice-only-screen">

@@ -31,7 +31,7 @@ You are AgroGuide, a personalized AI farming assistant, expert Agricultural Weat
 Your goals are to explain agricultural matters in simple, warm, and clear language, suitable for farmers, adapting strictly to their unique profiles.
 
 Strict Rules:
-1. Detect the user's language automatically. Reply ONLY in the same language (Telugu, Hindi, or English) as the user's message.
+1. Detect the user's language automatically. Reply ONLY in the same language (Telugu, Hindi, Tamil, or English) as the user's message.
 2. Use simple, warm, and practical language. Avoid technical jargon.
 3. Prioritize personalizing your response based on the farmer's profile context (Primary Crop, Crop Stage, Soil, Irrigation, Location, Weather) and retrieved knowledge base <context>. Never provide generic farming advice when farmer profile data is available.
 4. If the farmer describes crop disease symptoms (e.g., spots, pests, wilting):
@@ -39,14 +39,15 @@ Strict Rules:
    - Outline immediate natural or chemical precautions.
    - Advise checking with a local agricultural extension officer or expert to verify, emphasizing that you cannot make absolute diagnoses.
 5. Be concise and practical. Keep responses limited to 2-3 short sentences so they are easy to read and speak out loud.
+6. Rate your internal confidence score (0 to 100) based on how relevant and complete the retrieved context or profile data is to solve the farmer's query. If you have direct matches in the retrieved context, confidence should be 95-100%. If you must make minor generalizations, 75-94%. If context is weak or missing, below 50%.
 `;
 
 /**
- * Generate AI response
+ * Generate AI response with confidence rating
  * @param {string} message
  * @param {Array} history
  * @param {string} context - Retrieved context chunks
- * @returns {Promise<string>}
+ * @returns {Promise<Object>} { text: string, confidence: number }
  */
 export async function generateReply(message, history = [], context = "") {
   try {
@@ -75,14 +76,32 @@ ${conversationHistory}
 Current User Message:
 ${message}
 
-Assistant:
+Assistant (Output in JSON format with fields "reply" and "confidence"):
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            reply: { type: "string", description: "The localized, simple farming advice." },
+            confidence: { type: "integer", description: "Internal confidence rating percentage (0-100) based on context adequacy." }
+          },
+          required: ["reply", "confidence"]
+        }
+      }
+    });
 
     const response = await result.response;
+    const jsonStr = response.text().trim();
+    const data = JSON.parse(jsonStr);
 
-    return response.text().trim();
+    return {
+      text: data.reply || "",
+      confidence: typeof data.confidence === 'number' ? data.confidence : 85
+    };
   } catch (error) {
     console.error("Gemini Error:", error);
     try {
@@ -92,9 +111,12 @@ Assistant:
     } catch (fsErr) {
       console.error('Failed to write to error.log:', fsErr);
     }
-    throw new Error(
-      "Failed to generate response from AI assistant."
-    );
+    
+    // Fallback response on error
+    return {
+      text: "I'm sorry, but I encountered an issue processing your request. Please try again.",
+      confidence: 50
+    };
   }
 }
 
@@ -110,6 +132,7 @@ export async function generateWeatherSummary(weatherData, queryType, langCode) {
     let languageName = "English";
     if (langCode === 'te-IN') languageName = "Telugu";
     if (langCode === 'hi-IN') languageName = "Hindi";
+    if (langCode === 'ta-IN') languageName = "Tamil";
 
     const prompt = `
 You are AgroGuide.
@@ -162,6 +185,7 @@ export async function generateDailyFarmOverview(weather, profile, langCode) {
     let languageName = "English";
     if (langCode === 'te-IN') languageName = "Telugu";
     if (langCode === 'hi-IN') languageName = "Hindi";
+    if (langCode === 'ta-IN') languageName = "Tamil";
 
     const prompt = `
 You are AgroGuide, the expert Agricultural Weather Advisor.
