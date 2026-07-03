@@ -217,4 +217,100 @@ export async function deleteFarm(id) {
   }
 }
 
+/**
+ * Notifications APIs (Phase 8)
+ */
+export async function getNotifications() {
+  try {
+    const response = await api.get('/notifications');
+    return response.data.notifications || [];
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to fetch notifications');
+  }
+}
+
+export async function markNotificationRead(id) {
+  try {
+    const response = await api.put(`/notifications/${id}/read`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to mark notification read');
+  }
+}
+
+export async function markAllNotificationsRead() {
+  try {
+    const response = await api.put('/notifications/read-all');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to mark all notifications read');
+  }
+}
+
+/**
+ * Admin Panel APIs (Phase 8)
+ */
+export async function getAdminMetrics() {
+  try {
+    const response = await api.get('/admin/metrics');
+    return response.data.metrics || null;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to fetch admin statistics');
+  }
+}
+
+export async function triggerCronOverride() {
+  try {
+    const response = await api.post('/admin/trigger-jobs');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to trigger cron override');
+  }
+}
+
+/**
+ * Multimodal Crop Disease Diagnostics APIs (Phase 9)
+ */
+export async function uploadVisionImage(formData) {
+  try {
+    const response = await api.post('/vision/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to upload diagnostic image.');
+  }
+}
+
+export async function analyzeVisionImage(imagePath) {
+  try {
+    const response = await api.post('/vision/analyze', { imagePath });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to run disease diagnosis analysis.');
+  }
+}
+
+export async function getVisionHistory() {
+  try {
+    const response = await api.get('/vision/history');
+    return response.data.history || [];
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to retrieve diagnostics history.');
+  }
+}
+
+export async function getVisionStatistics() {
+  try {
+    const response = await api.get('/vision/statistics');
+    return response.data.statistics || null;
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to retrieve diagnostics stats.');
+  }
+}
+
 export default api;
+
+

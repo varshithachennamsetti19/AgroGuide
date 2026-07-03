@@ -34,6 +34,12 @@
   --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@keyframes blink {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+
 /* Base resets & setups */
 * {
   box-sizing: border-box;

@@ -56,7 +56,19 @@ export default function MessageItem({ message }) {
           )}
           
           <div style={{ flex: 1, paddingTop: !isUser ? '3px' : '0', wordBreak: 'break-word' }}>
-            <div>{message.text}</div>
+            <div>
+              {message.text}
+              {message.isStreaming && (
+                <span className="typing-cursor" style={{
+                  display: 'inline-block',
+                  width: '6px',
+                  height: '14px',
+                  background: 'var(--accent-cyan)',
+                  marginLeft: '4px',
+                  animation: 'blink 0.8s infinite'
+                }}></span>
+              )}
+            </div>
 
             {/* RENDER SOURCES IF AVAILABLE (Part 3) */}
             {!isUser && message.sources && Array.isArray(message.sources) && message.sources.length > 0 && (

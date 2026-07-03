@@ -1,4 +1,4 @@
-import { generateReply, generateWeatherSummary } from '../services/gemini.js';
+import { generateReply, generateWeatherSummary, generateReplyStream } from '../services/gemini.js';
 import Chat from '../models/Chat.js';
 import { detectIntent, extractCity, detectQueryTime, isSeasonalQuery, extractState } from '../services/intentRouter.js';
 import { retrieve } from '../rag/retriever.js';
@@ -16,6 +16,19 @@ import PredictionHistory from '../models/PredictionHistory.js';
 import { searchAgriculturePortal } from '../services/agricultureSearchService.js';
 import { generatePrediction } from '../services/predictionService.js';
 
+// Phase 8 imports
+import { cacheGet, cacheSet } from '../cache/redisClient.js';
+import {
+  recordResponseTime,
+  recordCacheHit,
+  recordCacheMiss,
+  recordBlockedQuery,
+  recordPredictionQuery,
+  recordWeatherQuery
+} from '../monitoring/performance.js';
+import Notification from '../models/Notification.js';
+import DiseaseHistory from '../models/DiseaseHistory.js'; // Phase 9
+
 // Match explainability phrases (Part 7, 12)
 const isExplainQuery = (message) => {
   const msg = message.toLowerCase().trim().replace(/[?.]/g, '');
@@ -26,6 +39,21 @@ const isExplainQuery = (message) => {
     'ஏன்', 'விளக்கு', 'காரணம்'
   ];
   return patterns.some(p => msg === p || msg.startsWith(p + ' ') || msg.endsWith(' ' + p));
+};
+
+// Match disease diagnostics explainability queries (Part 11)
+const isDiseaseExplainQuery = (message) => {
+  const msg = message.toLowerCase();
+  return (
+    msg.includes('why did you detect this') ||
+    msg.includes('explain your diagnosis') ||
+    msg.includes('explain this disease') ||
+    msg.includes('ఈ తెగులును ఎందుకు గుర్తించారు') ||
+    msg.includes('ఈ వ్యాధిని వివరించు') ||
+    msg.includes('यह रोग क्यों पाया गया') ||
+    msg.includes('इस बीमारी को समझाओ') ||
+    msg.includes('இந்த நோய் ஏன் கண்டறியப்பட்டது')
+  );
 };
 
 // Match prediction phrases (Part 6)
@@ -41,7 +69,7 @@ const isPredictionQuery = (message) => {
 };
 
 /**
- * @desc    Generate a reply from Gemini and save chat to MongoDB
+ * @desc    Generate a reply from Gemini and save chat to MongoDB (with Caching)
  * @route   POST /api/chat
  * @access  Private
  */
@@ -60,12 +88,67 @@ export const generateAndSaveChat = async (req, res) => {
   console.log(`[${new Date().toISOString()}] Incoming chat request from User ${userId}: "${message}"`);
   const startTime = Date.now();
   const language = detectLanguage(message);
+  const cacheKey = `chat:${language}:${message.toLowerCase().trim()}`;
 
   try {
     const dbUser = await User.findById(userId);
 
-    // 2. Explainability Check (Part 7)
-    if (isExplainQuery(message)) {
+    // 2. Explainability Check (Part 11)
+    if (isExplainQuery(message) || isDiseaseExplainQuery(message)) {
+      const isDiseaseExplain = isDiseaseExplainQuery(message);
+      
+      if (isDiseaseExplain) {
+        const lastDiagnosis = await DiseaseHistory.findOne({ userId }).sort({ createdAt: -1 });
+        if (lastDiagnosis) {
+          console.log(`[Explainability] Explaining previous disease diagnosis: "${lastDiagnosis.disease}"`);
+          
+          let promptLanguage = "English";
+          if (language === 'te-IN') promptLanguage = "Telugu";
+          if (language === 'hi-IN') promptLanguage = "Hindi";
+          if (language === 'ta-IN') promptLanguage = "Tamil";
+
+          const explanationPrompt = `
+You are AgroGuide, the expert Multimodal Diagnostic System. The user has asked you to explain your disease diagnosis:
+
+Crop: ${lastDiagnosis.crop}
+Disease: ${lastDiagnosis.disease}
+Confidence: ${lastDiagnosis.confidence}%
+Severity: ${lastDiagnosis.severity}
+Location: ${lastDiagnosis.location}
+Weather Conditions: ${JSON.stringify(lastDiagnosis.weather)}
+
+Explain the reasoning behind this diagnosis in ${promptLanguage}. Discuss the visible symptoms (leaf spots, spores, lesions), weather factors (e.g. humidity/wetness causing blast/blight), and trusted sources used to determine this. Keep it to 3-4 clear sentences.
+`;
+
+          const explanationRes = await generateReply(explanationPrompt, [], "");
+          const reply = explanationRes.text;
+
+          const savedChat = await Chat.create({
+            userId,
+            question: message,
+            answer: reply,
+            language
+          });
+
+          await QueryLog.create({
+            userId,
+            query: message,
+            intent: 'GENERAL_AGRICULTURE',
+            status: 'allowed',
+            confidence: 100
+          });
+
+          recordResponseTime(Date.now() - startTime);
+
+          return res.status(200).json({
+            success: true,
+            reply,
+            chat: savedChat
+          });
+        }
+      }
+
+      // Original chat advice explanation
       const lastChat = await Chat.findOne({ userId }).sort({ createdAt: -1 });
       if (lastChat) {
         console.log(`[Explainability] Explaining previous recommendation: "${lastChat.answer}"`);
@@ -108,6 +191,9 @@ ${contextText}
           confidence: 100
         });
 
+        recordResponseTime(Date.now() - startTime);
+
+
         return res.status(200).json({
           success: true,
           reply,
@@ -116,11 +202,12 @@ ${contextText}
       }
     }
 
-    // 3. Domain Firewall Check (Part 2, 3, 11)
+    // 3. Domain Firewall Check
     const firewallStatus = checkDomainFirewall(message);
     if (!firewallStatus.isAllowed) {
       console.log(`[Firewall Refusal] Reason: ${firewallStatus.reason}`);
-      
+      recordBlockedQuery();
+
       const savedChat = await Chat.create({
         userId,
         question: message,
@@ -136,6 +223,8 @@ ${contextText}
         confidence: 0
       });
 
+      recordResponseTime(Date.now() - startTime);
+
       return res.status(200).json({
         success: true,
         reply: firewallStatus.reply,
@@ -143,7 +232,41 @@ ${contextText}
       });
     }
 
-    // 4. Intent Classification
+    // 4. Check Caching for general responses
+    const cachedVal = await cacheGet(cacheKey);
+    if (cachedVal) {
+      recordCacheHit();
+      console.log(`[Cache Hit] Serving cached response for: "${message}"`);
+      
+      const savedChat = await Chat.create({
+        userId,
+        question: message,
+        answer: cachedVal.answer,
+        language,
+        sources: cachedVal.sources
+      });
+
+      await QueryLog.create({
+        userId,
+        query: message,
+        intent: cachedVal.intent || 'GENERAL_AGRICULTURE',
+        status: 'allowed',
+        confidence: cachedVal.confidence || 100
+      });
+
+      recordResponseTime(Date.now() - startTime);
+
+      return res.status(200).json({
+        success: true,
+        reply: cachedVal.answer,
+        chat: savedChat,
+        sources: cachedVal.sources,
+        cached: true
+      });
+    }
+    recordCacheMiss();
+
+    // 5. Intent Classification
     let intent = await detectIntent(message);
 
     if (intent === 'OUT_OF_SCOPE') {
@@ -163,6 +286,8 @@ ${contextText}
         confidence: 0
       });
 
+      recordResponseTime(Date.now() - startTime);
+
       return res.status(200).json({
         success: true,
         reply: fallbackReply,
@@ -170,12 +295,12 @@ ${contextText}
       });
     }
 
-    // 5. Prediction Engine Flow (Part 6)
+    // 6. Prediction Engine Flow
     if (isPredictionQuery(message)) {
+      recordPredictionQuery();
       console.log(`🔮 Prediction Engine triggered for: "${message}"`);
       const predResult = await generatePrediction(message, language);
       
-      // Save standard chat
       const savedChat = await Chat.create({
         userId,
         question: message,
@@ -183,7 +308,6 @@ ${contextText}
         language
       });
 
-      // Save PredictionHistory model (Part 13)
       await PredictionHistory.create({
         userId,
         predictionType: predResult.predictionType,
@@ -191,7 +315,6 @@ ${contextText}
         confidence: predResult.confidence
       });
 
-      // Log in QueryLog
       await QueryLog.create({
         userId,
         query: message,
@@ -199,6 +322,16 @@ ${contextText}
         status: 'allowed',
         confidence: predResult.confidence
       });
+
+      // Cache prediction result for 2 hours
+      await cacheSet(cacheKey, {
+        answer: predResult.reply,
+        intent: 'MARKET_QUERY',
+        confidence: predResult.confidence,
+        sources: []
+      }, 7200);
+
+      recordResponseTime(Date.now() - startTime);
 
       return res.status(200).json({
         success: true,
@@ -239,6 +372,7 @@ ${contextText}
 
     // --- FLOW A: WEATHER INTENT HANDLING ---
     if (weatherIntents.includes(intent)) {
+      recordWeatherQuery();
       const isSeasonal = isSeasonalQuery(message) || (isStateOnly && history && history.length > 0);
 
       // Handle seasonal rainfall / monsoon queries
@@ -272,6 +406,8 @@ ${contextText}
             confidence: 100
           });
 
+          recordResponseTime(Date.now() - startTime);
+
           return res.status(200).json({
             success: true,
             reply,
@@ -294,7 +430,6 @@ ${contextText}
         const replyRes = await generateReply(message, history, augmentedContext);
         let reply = replyRes.text;
 
-        // Validate output
         const validOut = validateOutput(reply, message);
         if (!validOut.isValid) {
           reply = validOut.reply;
@@ -315,6 +450,16 @@ ${contextText}
           confidence: replyRes.confidence
         });
 
+        // Cache seasonal reply for 1 hour
+        await cacheSet(cacheKey, {
+          answer: reply,
+          intent: 'WEATHER_QUERY',
+          confidence: replyRes.confidence,
+          sources: []
+        }, 3600);
+
+        recordResponseTime(Date.now() - startTime);
+
         return res.status(200).json({
           success: true,
           reply,
@@ -322,7 +467,7 @@ ${contextText}
         });
       }
 
-      // Standard City Weather Flow
+      // Standard City Weather Flow with 10 minutes caching (Part 3)
       let city = extractCity(message);
       let detectedLat = latitude;
       let detectedLon = longitude;
@@ -342,7 +487,7 @@ ${contextText}
             });
           }
         } catch (err) {
-          console.error('Failed to reverse geocode coordinates:', err.message);
+          console.error('Failed to reverse geocode:', err.message);
         }
       }
 
@@ -362,8 +507,6 @@ ${contextText}
           reply = 'நீங்கள் எந்த நகரத்தின் வானிலை அறிய விரும்புகிறீர்கள்?';
         }
         
-        console.log(`[Weather Query] Missing city. Prompting.`);
-        
         const savedChat = await Chat.create({
           userId,
           question: message,
@@ -379,6 +522,8 @@ ${contextText}
           confidence: 100
         });
 
+        recordResponseTime(Date.now() - startTime);
+
         return res.status(200).json({
           success: true,
           reply,
@@ -387,34 +532,26 @@ ${contextText}
         });
       }
 
-      if (dbUser && !dbUser.preferredCity) {
-        try {
-          const geo = await geocodeCity(city);
-          await User.findByIdAndUpdate(userId, {
-            preferredCity: city,
-            preferredState: geo.state,
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-            lastKnownLocation: `${city}, ${geo.state}`
-          });
-        } catch (err) {
-          console.error('Failed to geocode city:', err.message);
-        }
-      }
-
       const isForecastIntent = intent === 'FORECAST' || intent === 'RAIN_FORECAST';
       const queryType = isForecastIntent || detectQueryTime(message) === 'forecast' ? 'forecast' : 'current';
+      const weatherCacheKey = `weather:${queryType}:${city.toLowerCase().trim()}`;
       
-      let weatherData;
-      if (queryType === 'forecast') {
-        weatherData = await fetchWeatherForecast(city);
+      let weatherData = await cacheGet(weatherCacheKey);
+      if (weatherData) {
+        recordCacheHit();
       } else {
-        weatherData = await fetchCurrentWeather(city);
+        recordCacheMiss();
+        if (queryType === 'forecast') {
+          weatherData = await fetchWeatherForecast(city);
+        } else {
+          weatherData = await fetchCurrentWeather(city);
+        }
+        // Cache weather for 10 minutes (600 seconds)
+        await cacheSet(weatherCacheKey, weatherData, 600);
       }
 
       let reply = await generateWeatherSummary(weatherData, queryType, language);
 
-      // Validate output
       const validOut = validateOutput(reply, message);
       if (!validOut.isValid) {
         reply = validOut.reply;
@@ -469,6 +606,16 @@ ${contextText}
         confidence: 98
       });
 
+      // Cache weather summary chat reply for 5 minutes
+      await cacheSet(cacheKey, {
+        answer: reply,
+        intent: 'WEATHER_QUERY',
+        confidence: 98,
+        sources: []
+      }, 300);
+
+      recordResponseTime(Date.now() - startTime);
+
       return res.status(200).json({
         success: true,
         reply,
@@ -494,7 +641,6 @@ Farmer Profile Context:
 `;
     }
 
-    // Check if intent requires RAG grounding
     const isRAGRequired = [
       'SCHEME_QUERY', 'CROP_QUERY', 'SOIL_QUERY', 'IRRIGATION_QUERY',
       'FERTILIZER_QUERY', 'PEST_QUERY', 'DISEASE_QUERY', 'MARKET_QUERY',
@@ -514,60 +660,71 @@ Farmer Profile Context:
         }
       }
       
-      console.log(`🔍 RAG: Fetching context for: "${augmentedQuery}"`);
-      const retrievedChunks = await retrieve(augmentedQuery, 3);
-      
-      // Determine context adequacy (must return chunks, and highest score must be reasonable)
-      const hasEnoughContext = retrievedChunks && retrievedChunks.length > 0 && 
-                               retrievedChunks.some(chunk => chunk.score >= 0.5);
+      // RAG / Search caching (Part 4)
+      const ragCacheKey = `rag:${intent}:${augmentedQuery.toLowerCase().trim()}`;
+      let cachedRAG = await cacheGet(ragCacheKey);
 
-      if (hasEnoughContext) {
-        context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
+      if (cachedRAG) {
+        recordCacheHit();
+        context = cachedRAG.context;
+        fetchedSources = cachedRAG.sources || [];
       } else {
-        // --- PHASE 7 WEB SEARCH PIPELINE ---
-        console.log(`[RAG Insufficient] Sourced RAG score too low. Intercepting with Whitelisted Web Search...`);
-        const searchResult = await searchAgriculturePortal(message);
+        recordCacheMiss();
+        console.log(`🔍 RAG: Fetching context for: "${augmentedQuery}"`);
+        const retrievedChunks = await retrieve(augmentedQuery, 3);
+        const hasEnoughContext = retrievedChunks && retrievedChunks.length > 0 && 
+                                 retrievedChunks.some(chunk => chunk.score >= 0.5);
 
-        if (searchResult.success && searchResult.results.length > 0) {
-          const searchContentText = searchResult.results.map(r => `[Source: ${r.sourceName} (${r.url})]: ${r.content}`).join('\n\n');
-          context = `Knowledge Grounding (Whitelisted Agricultural Search):\n${searchContentText}`;
-          fetchedSources = searchResult.sources;
+        if (hasEnoughContext) {
+          context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
         } else {
-          // --- PHASE 7 & 11 NO KNOWLEDGE FALLBACK ---
-          console.warn(`[Pipeline Refusal] No RAG or whitelisted web search records match the query: "${message}"`);
-          
-          const fallbackMsg = {
-            'en-US': "I'm sorry, but I couldn't find reliable agricultural information for your question.",
-            'te-IN': "క్షమించండి, అందుబాటులో ఉన్న వ్యవసాయ విజ్ఞాన సర్వస్వం నుండి మీ ప్రశ్నకు తగిన నమ్మకమైన సమాచారం లభించలేదు.",
-            'hi-IN': "क्षमा करें, उपलब्ध कृषि ज्ञानकोश से आपके प्रश्न के लिए विश्वसनीय जानकारी नहीं मिल सकी।",
-            'ta-IN': "மன்னிக்கவும், கிடைக்கக்கூடிய விவசாய அறிவுத் தளத்திலிருந்து உங்கள் கேள்விக்கான நம்பகமான தகவலைக் கண்டறிய முடியவில்லை."
-          }[language] || "I'm sorry, but I couldn't find reliable agricultural information for your question.";
+          // Web search fallback
+          console.log(`[RAG Insufficient] Sourced RAG score too low. Intercepting with Whitelisted Web Search...`);
+          const searchResult = await searchAgriculturePortal(message);
 
-          const savedChat = await Chat.create({
-            userId,
-            question: message,
-            answer: fallbackMsg,
-            language
-          });
+          if (searchResult.success && searchResult.results.length > 0) {
+            const searchContentText = searchResult.results.map(r => `[Source: ${r.sourceName} (${r.url})]: ${r.content}`).join('\n\n');
+            context = `Knowledge Grounding (Whitelisted Agricultural Search):\n${searchContentText}`;
+            fetchedSources = searchResult.sources;
+          } else {
+            // Fallback strategy on search fail
+            const fallbackMsg = {
+              'en-US': "I'm sorry, but I couldn't find reliable agricultural information for your question.",
+              'te-IN': "క్షమించండి, అందుబాటులో ఉన్న వ్యవసాయ విజ్ఞాన సర్వస్వం నుండి మీ ప్రశ్నకు తగిన నమ్మకమైన సమాచారం లభించలేదు.",
+              'hi-IN': "क्षमा करें, उपलब्ध कृषि ज्ञानकोश से आपके प्रश्न के लिए विश्वसनीय जानकारी नहीं मिल सकी।",
+              'ta-IN': "மன்னிக்கவும், கிடைக்கக்கூடிய விவசாய அறிவுத் தளத்திலிருந்து உங்கள் கேள்விக்கான நம்பகமான தகவலைக் கண்டறிய முடியவில்லை."
+            }[language] || "I'm sorry, but I couldn't find reliable agricultural information for your question.";
 
-          await QueryLog.create({
-            userId,
-            query: message,
-            intent,
-            status: 'blocked',
-            confidence: 0
-          });
+            const savedChat = await Chat.create({
+              userId,
+              question: message,
+              answer: fallbackMsg,
+              language
+            });
 
-          return res.status(200).json({
-            success: true,
-            reply: fallbackMsg,
-            chat: savedChat
-          });
+            await QueryLog.create({
+              userId,
+              query: message,
+              intent,
+              status: 'blocked',
+              confidence: 0
+            });
+
+            recordResponseTime(Date.now() - startTime);
+
+            return res.status(200).json({
+              success: true,
+              reply: fallbackMsg,
+              chat: savedChat
+            });
+          }
         }
+        
+        // Cache retrieved RAG/Search details (Part 4)
+        await cacheSet(ragCacheKey, { context, sources: fetchedSources }, 1800); // 30 mins
       }
     }
 
-    // Combine profile context and RAG/Search context
     const fullContext = [
       farmerProfileContext,
       context ? `${context}` : ''
@@ -578,7 +735,7 @@ Farmer Profile Context:
     let reply = geminiRes.text;
     let confidence = geminiRes.confidence;
 
-    // Check confidence rating limits (Part 9)
+    // Check confidence rating limits
     if (confidence < 50) {
       console.warn(`[Confidence Block] Gemini confidence low: ${confidence}%`);
       reply = "I couldn't find enough reliable agricultural information to answer this confidently.";
@@ -598,6 +755,8 @@ Farmer Profile Context:
         confidence
       });
 
+      recordResponseTime(Date.now() - startTime);
+
       return res.status(200).json({
         success: true,
         reply,
@@ -605,25 +764,22 @@ Farmer Profile Context:
       });
     }
 
-    // Run output validation scanner (Part 7)
+    // Run output validation scanner
     const validOut = validateOutput(reply, message);
     if (!validOut.isValid) {
-      console.warn(`[Output Validation Block] Reason: ${validOut.reason}`);
-      reply = validOut.reply; // Replace with safe fallback
+      reply = validOut.reply;
       confidence = 0;
     }
 
-    // Save final response in main Chat history
     const savedChat = await Chat.create({
       userId,
       question: message,
       answer: reply,
       language,
-      sources: fetchedSources // Save whitelisted sources!
+      sources: fetchedSources
     });
 
-    // Save SearchHistory details if whitelisted search was triggered
-    if (fetchedSources.length > 0) {
+    if (fetchedSources.length > 0 && validOut.isValid) {
       let confLabel = 'High';
       if (confidence < 70) confLabel = 'Low';
       else if (confidence < 90) confLabel = 'Medium';
@@ -637,7 +793,6 @@ Farmer Profile Context:
       });
     }
 
-    // Log allowed query in analytics database
     await QueryLog.create({
       userId,
       query: message,
@@ -645,6 +800,18 @@ Farmer Profile Context:
       status: !validOut.isValid ? 'blocked' : 'allowed',
       confidence,
     });
+
+    // Cache final reply (Part 2)
+    if (validOut.isValid) {
+      await cacheSet(cacheKey, {
+        answer: reply,
+        intent,
+        confidence,
+        sources: fetchedSources
+      }, 3600); // 1 hour cache
+    }
+
+    recordResponseTime(Date.now() - startTime);
 
     return res.status(200).json({
       success: true,
@@ -654,44 +821,294 @@ Farmer Profile Context:
     });
   } catch (error) {
     console.error('Error generating and saving chat:', error.message);
-
-    try {
-      const fs = await import('fs');
-      const logMessage = `[${new Date().toISOString()}] ERROR: ${error.message}\nSTACK: ${error.stack}\n\n`;
-      fs.appendFileSync('error.log', logMessage);
-    } catch (fsErr) {
-      console.error('Failed to write to error.log:', fsErr);
-    }
-
-    if (error.statusCode === 404) {
-      const rawCity = extractCity(message) || 'requested';
-      let errReply = `I couldn't find the city "${rawCity}". Please check the spelling and try again.`;
-      if (language === 'te-IN') {
-        errReply = `నేను "${rawCity}" నగరాన్ని కనుగొనలేకపోయాను. దయచేసి స్పెల్లింగ్ సరిచూసుకొని మళ్ళీ ప్రయత్నించండి.`;
-      } else if (language === 'hi-IN') {
-        errReply = `मुझे "${rawCity}" शहर नहीं मिला। कृपया वर्तनी (spelling) की जाँच करें और पुन: प्रयास करें।`;
-      } else if (language === 'ta-IN') {
-        errReply = `என்னால் "${rawCity}" நகரத்தைக் கண்டறிய முடியவில்லை. தயவுசெய்து எழுத்துப்பிழையைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.`;
-      }
-
-      const savedChat = await Chat.create({
-        userId,
-        question: message,
-        answer: errReply,
-        language
-      });
-
-      return res.status(200).json({
-        success: true,
-        reply: errReply,
-        chat: savedChat
-      });
-    }
-
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       error: 'Failed to generate response from AI assistant. Please try again.',
     });
+  }
+};
+
+/**
+ * @desc    Stream AI response token-by-token (Phase 8 Streaming)
+ * @route   POST /api/chat/stream
+ * @access  Private
+ */
+export const generateAndSaveChatStream = async (req, res) => {
+  const { message, history, latitude, longitude } = req.body;
+  const userId = req.user._id;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ success: false, error: 'Message parameter required.' });
+  }
+
+  const startTime = Date.now();
+  const language = detectLanguage(message);
+  const cacheKey = `chat:${language}:${message.toLowerCase().trim()}`;
+
+  // 1. Domain Firewall Check
+  const firewallStatus = checkDomainFirewall(message);
+  if (!firewallStatus.isAllowed) {
+    recordBlockedQuery();
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    
+    // Save blocked chat
+    const savedChat = await Chat.create({
+      userId,
+      question: message,
+      answer: firewallStatus.reply,
+      language
+    });
+
+    await QueryLog.create({
+      userId,
+      query: message,
+      intent: 'OUT_OF_SCOPE',
+      status: 'blocked',
+      confidence: 0
+    });
+
+    res.write(`data: ${JSON.stringify({ text: firewallStatus.reply, chat: savedChat, done: true })}\n\n`);
+    res.end();
+    recordResponseTime(Date.now() - startTime);
+    return;
+  }
+
+  // 2. Response Cache Hit (Part 2)
+  const cachedVal = await cacheGet(cacheKey);
+  if (cachedVal) {
+    recordCacheHit();
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    
+    const savedChat = await Chat.create({
+      userId,
+      question: message,
+      answer: cachedVal.answer,
+      language,
+      sources: cachedVal.sources
+    });
+
+    await QueryLog.create({
+      userId,
+      query: message,
+      intent: cachedVal.intent || 'GENERAL_AGRICULTURE',
+      status: 'allowed',
+      confidence: cachedVal.confidence || 100
+    });
+
+    // Stream cached answer in chunks quickly
+    const words = cachedVal.answer.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      res.write(`data: ${JSON.stringify({ text: words[i] + ' ' })}\n\n`);
+      await new Promise(r => setTimeout(r, 40));
+    }
+    
+    res.write(`data: ${JSON.stringify({ done: true, chat: savedChat, sources: cachedVal.sources })}\n\n`);
+    res.end();
+    recordResponseTime(Date.now() - startTime);
+    return;
+  }
+  recordCacheMiss();
+
+  try {
+    const dbUser = await User.findById(userId);
+    let intent = await detectIntent(message);
+
+    // Weather checks
+    const isWeatherMsg = [
+      'WEATHER_QUERY', 'CURRENT_WEATHER', 'FORECAST',
+      'RAIN_FORECAST', 'TEMPERATURE', 'HUMIDITY'
+    ].includes(intent);
+
+    let context = "";
+    let fetchedSources = [];
+
+    // Weather Stream
+    if (isWeatherMsg) {
+      recordWeatherQuery();
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+
+      let city = extractCity(message) || dbUser?.preferredCity || 'Guntur';
+      const weatherCacheKey = `weather:current:${city.toLowerCase().trim()}`;
+      
+      let weatherData = await cacheGet(weatherCacheKey);
+      if (!weatherData) {
+        weatherData = await fetchCurrentWeather(city);
+        await cacheSet(weatherCacheKey, weatherData, 600);
+      }
+
+      let reply = await generateWeatherSummary(weatherData, 'current', language);
+      
+      const savedChat = await Chat.create({
+        userId,
+        question: message,
+        answer: reply,
+        language,
+        weatherData
+      });
+
+      await QueryLog.create({
+        userId,
+        query: message,
+        intent: 'WEATHER_QUERY',
+        status: 'allowed',
+        confidence: 98
+      });
+
+      // Stream summary
+      const words = reply.split(' ');
+      for (const w of words) {
+        res.write(`data: ${JSON.stringify({ text: w + ' ' })}\n\n`);
+        await new Promise(r => setTimeout(r, 40));
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true, chat: savedChat, weatherData })}\n\n`);
+      res.end();
+      recordResponseTime(Date.now() - startTime);
+      return;
+    }
+
+    // Standard flow (RAG & Web Search check)
+    let farmerProfileContext = "";
+    if (dbUser && dbUser.isProfileCompleted) {
+      farmerProfileContext = `
+Farmer Profile:
+- Crop: ${dbUser.primaryCrop}
+- Soil: ${dbUser.soilType}
+- Location: ${dbUser.village || 'N/A'}, ${dbUser.state || 'N/A'}
+`;
+    }
+
+    const isRAGRequired = [
+      'SCHEME_QUERY', 'CROP_QUERY', 'SOIL_QUERY', 'IRRIGATION_QUERY',
+      'FERTILIZER_QUERY', 'PEST_QUERY', 'DISEASE_QUERY', 'MARKET_QUERY'
+    ].includes(intent);
+
+    if (isRAGRequired) {
+      let augmentedQuery = message;
+      if (dbUser && dbUser.isProfileCompleted && dbUser.primaryCrop) {
+        augmentedQuery = `${dbUser.primaryCrop} ${message}`;
+      }
+
+      const ragCacheKey = `rag:${intent}:${augmentedQuery.toLowerCase().trim()}`;
+      let cachedRAG = await cacheGet(ragCacheKey);
+
+      if (cachedRAG) {
+        context = cachedRAG.context;
+        fetchedSources = cachedRAG.sources || [];
+      } else {
+        const retrievedChunks = await retrieve(augmentedQuery, 3);
+        const hasEnoughContext = retrievedChunks && retrievedChunks.length > 0 && 
+                                 retrievedChunks.some(chunk => chunk.score >= 0.5);
+
+        if (hasEnoughContext) {
+          context = retrievedChunks.map(c => `[Source: ${c.metadata.title}]: ${c.text}`).join('\n\n');
+        } else {
+          // Sourced Web Search
+          const searchResult = await searchAgriculturePortal(message);
+          if (searchResult.success && searchResult.results.length > 0) {
+            const searchContentText = searchResult.results.map(r => `[Source: ${r.sourceName} (${r.url})]: ${r.content}`).join('\n\n');
+            context = `Knowledge Grounding (Whitelisted Agricultural Search):\n${searchContentText}`;
+            fetchedSources = searchResult.sources;
+          } else {
+            // Fallback
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+            });
+            const fallbackMsg = "I'm sorry, but I couldn't find reliable agricultural information for your question.";
+            const savedChat = await Chat.create({
+              userId,
+              question: message,
+              answer: fallbackMsg,
+              language
+            });
+            res.write(`data: ${JSON.stringify({ text: fallbackMsg, chat: savedChat, done: true })}\n\n`);
+            res.end();
+            recordResponseTime(Date.now() - startTime);
+            return;
+          }
+        }
+        await cacheSet(ragCacheKey, { context, sources: fetchedSources }, 1800);
+      }
+    }
+
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    const fullContext = [farmerProfileContext, context].filter(Boolean).join('\n\n');
+
+    // Call Gemini streaming API (Part 5)
+    const resultStream = await generateReplyStream(message, history, fullContext);
+    let fullText = '';
+
+    for await (const chunk of resultStream.stream) {
+      const textChunk = chunk.text();
+      fullText += textChunk;
+      // Stream incremental token to UI
+      res.write(`data: ${JSON.stringify({ text: textChunk })}\n\n`);
+    }
+
+    // Output validation check on full reply text
+    const validOut = validateOutput(fullText, message);
+    let finalAnswer = fullText;
+    if (!validOut.isValid) {
+      finalAnswer = validOut.reply;
+      // Send replace chunk indicating validation replacement
+      res.write(`data: ${JSON.stringify({ text: finalAnswer, replace: true })}\n\n`);
+    }
+
+    const savedChat = await Chat.create({
+      userId,
+      question: message,
+      answer: finalAnswer,
+      language,
+      sources: fetchedSources
+    });
+
+    // Save logs
+    await QueryLog.create({
+      userId,
+      query: message,
+      intent,
+      status: !validOut.isValid ? 'blocked' : 'allowed',
+      confidence: !validOut.isValid ? 0 : 90
+    });
+
+    // Cache final reply (Part 2)
+    if (validOut.isValid) {
+      await cacheSet(cacheKey, {
+        answer: finalAnswer,
+        intent,
+        confidence: 90,
+        sources: fetchedSources
+      }, 3600);
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true, chat: savedChat, sources: fetchedSources })}\n\n`);
+    res.end();
+    recordResponseTime(Date.now() - startTime);
+
+  } catch (err) {
+    console.error('Streaming API Error:', err.message);
+    res.write(`data: ${JSON.stringify({ error: 'Streaming execution failed.', done: true })}\n\n`);
+    res.end();
   }
 };
 
@@ -705,17 +1122,9 @@ export const getHistory = async (req, res) => {
 
   try {
     const chats = await Chat.find({ userId }).sort({ createdAt: 1 });
-    
-    return res.status(200).json({
-      success: true,
-      chats,
-    });
+    return res.status(200).json({ success: true, chats });
   } catch (error) {
-    console.error('Error fetching chat history:', error.message);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve chat history from server',
-    });
+    res.status(500).json({ success: false, error: 'Failed to retrieve chat history.' });
   }
 };
 
@@ -730,24 +1139,12 @@ export const deleteChat = async (req, res) => {
 
   try {
     const chat = await Chat.findOneAndDelete({ _id: chatId, userId });
-
     if (!chat) {
-      return res.status(404).json({
-        success: false,
-        error: 'Chat record not found or unauthorized to delete',
-      });
+      return res.status(404).json({ success: false, error: 'Chat record not found.' });
     }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Chat message deleted successfully',
-    });
+    return res.status(200).json({ success: true, message: 'Chat message deleted successfully.' });
   } catch (error) {
-    console.error('Error deleting chat record:', error.message);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete chat record from server',
-    });
+    res.status(500).json({ success: false, error: 'Failed to delete chat.' });
   }
 };
 
@@ -761,16 +1158,8 @@ export const clearHistory = async (req, res) => {
 
   try {
     await Chat.deleteMany({ userId });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Entire chat history cleared successfully',
-    });
+    return res.status(200).json({ success: true, message: 'Entire chat history cleared.' });
   } catch (error) {
-    console.error('Error clearing chat history:', error.message);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to clear chat history from server',
-    });
+    res.status(500).json({ success: false, error: 'Failed to clear chat history.' });
   }
 };

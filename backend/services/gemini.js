@@ -224,3 +224,41 @@ Response:
     return "Unable to generate personalized recommendation. Please verify your internet connection or try again.";
   }
 }
+
+/**
+ * Generate AI response as stream (Phase 8)
+ * @param {string} message
+ * @param {Array} history
+ * @param {string} context - Grounding context
+ */
+export async function generateReplyStream(message, history = [], context = "") {
+  const conversationHistory = history
+    .map((msg) => {
+      const role = msg.role === "user" ? "User" : "Assistant";
+      return `${role}: ${msg.text || msg.message || ""}`;
+    })
+    .join("\n");
+
+  const contextSection = context ? `
+Retrieved Context (Knowledge Base Grounding):
+<context>
+${context}
+</context>
+` : '';
+
+  const prompt = `
+${SYSTEM_PROMPT}
+
+${contextSection}
+
+Conversation History:
+${conversationHistory}
+
+Current User Message:
+${message}
+
+Assistant (Respond with plain text only, no JSON wrapper structures):
+`;
+
+  return model.generateContentStream(prompt);
+}

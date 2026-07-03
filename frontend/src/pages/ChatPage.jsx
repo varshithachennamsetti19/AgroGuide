@@ -8,6 +8,11 @@ import LoadingBubble from '../components/LoadingBubble';
 import { SpeechRecognitionService, TextToSpeechService } from '../utils/speech';
 import ProfileWizard from './ProfileWizard';
 import FarmerDashboard from './FarmerDashboard';
+import NotificationCenter from '../components/NotificationCenter';
+import AdminDashboard from './AdminDashboard';
+import DiseaseDetection from './DiseaseDetection';
+import DiseaseHistory from './DiseaseHistory';
+
 
 /**
  * Automatically detects the language of a string based on unicode ranges.
@@ -368,22 +373,30 @@ export default function ChatPage() {
     setInput('');
     setIsLoading(true);
 
-    // If we were viewing a single isolated record, reset back to full conversation flow
     setSelectedChatId(null);
 
-    // Temp message state (optimistic update, gets replaced by saved chat from database)
     const userMsgId = `temp-${Date.now()}`;
-    const userMessage = {
-      id: userMsgId,
-      role: 'user',
-      text: messageText,
-      timestamp: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, userMessage]);
+    const modelMsgId = `temp-model-${Date.now()}`;
+
+    // Add user message and streaming placeholder in state
+    setMessages(prev => [
+      ...prev,
+      {
+        id: userMsgId,
+        role: 'user',
+        text: messageText,
+        timestamp: new Date().toISOString()
+      },
+      {
+        id: modelMsgId,
+        role: 'model',
+        text: '',
+        timestamp: new Date().toISOString(),
+        isStreaming: true
+      }
+    ]);
 
     try {
-      // Build history payload for Gemini context preservation
-      // We only include the last 8 messages to keep token payload reasonable
       const apiHistory = messages
         .filter(m => !m.id.startsWith('temp-'))
         .slice(-8)
@@ -392,7 +405,6 @@ export default function ChatPage() {
           text: m.text
         }));
 
-      // Check if the query is weather-related
       const isWeatherMsg = (text) => {
         const msg = text.toLowerCase();
         return (
@@ -417,61 +429,111 @@ export default function ChatPage() {
         }
       }
 
-      const result = await sendChatMessage(messageText, apiHistory, lat, lon);
+      // Invoke Streaming endpoint with SSE (Part 5)
+      const response = await fetch('http://localhost:5000/api/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: messageText,
+          history: apiHistory,
+          latitude: lat,
+          longitude: lon
+        }),
+        credentials: 'include'
+      });
 
-      if (result.success && result.chat) {
-        const savedChat = result.chat;
+      if (!response.ok) {
+        throw new Error(`Server returned status code: ${response.status}`);
+      }
 
-        // Replace the temporary user message and append model message using real MongoDB ID
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumResponse = '';
+      let sources = [];
+      let weatherData = null;
+      let realChatObj = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              
+              if (parsed.error) {
+                accumResponse = parsed.error;
+              } else if (parsed.replace) {
+                accumResponse = parsed.text; // Replace with validation safe text
+              } else if (parsed.text) {
+                accumResponse += parsed.text;
+              }
+              if (parsed.sources) {
+                sources = parsed.sources;
+              }
+              if (parsed.weatherData) {
+                weatherData = parsed.weatherData;
+              }
+              if (parsed.chat) {
+                realChatObj = parsed.chat;
+              }
+
+              // Update stream incrementally in React state
+              setMessages(prev => prev.map(m =>
+                m.id === modelMsgId ? { ...m, text: accumResponse, sources, weatherData } : m
+              ));
+            } catch (err) {
+              // Ignore partial chunks
+            }
+          }
+        }
+      }
+
+      // Cleanup and sync real ID once streaming concludes
+      if (realChatObj) {
         setMessages(prev => {
-          const filtered = prev.filter(m => m.id !== userMsgId);
+          const filtered = prev.filter(m => m.id !== userMsgId && m.id !== modelMsgId);
           return [
             ...filtered,
             {
-              id: `${savedChat._id}-q`,
-              dbId: savedChat._id,
+              id: `${realChatObj._id}-q`,
+              dbId: realChatObj._id,
               role: 'user',
-              text: savedChat.question,
-              timestamp: savedChat.createdAt
+              text: realChatObj.question,
+              timestamp: realChatObj.createdAt
             },
             {
-              id: `${savedChat._id}-a`,
-              dbId: savedChat._id,
+              id: `${realChatObj._id}-a`,
+              dbId: realChatObj._id,
               role: 'model',
-              text: savedChat.answer,
-              timestamp: savedChat.createdAt,
-              weatherData: savedChat.weatherData || result.weatherData,
-              sources: savedChat.sources || result.sources
+              text: realChatObj.answer,
+              timestamp: realChatObj.createdAt,
+              weatherData,
+              sources
             }
           ];
         });
 
-        // Add to sidebar chats
-        setDbChats(prev => [savedChat, ...prev]);
+        setDbChats(prev => [realChatObj, ...prev]);
 
-        // Speak the reply
-        if ((result.promptForCity || result.promptForState) && ttsServiceRef.current) {
-          setIsSpeaking(true);
-          ttsServiceRef.current.speak(savedChat.answer, {
-            onStart: () => setIsSpeaking(true),
-            onEnd: () => {
-              setIsSpeaking(false);
-              // Auto-start microphone after asking for the city/state
-              setTimeout(() => {
-                startListening();
-              }, 400);
-            },
-            onError: () => setIsSpeaking(false)
-          });
-        } else {
-          speakText(savedChat.answer);
-        }
+        // Speak final synthesized voice
+        speakText(realChatObj.answer);
+      } else {
+        // Fallback: Remove streaming flag
+        setMessages(prev => prev.map(m =>
+          m.id === modelMsgId ? { ...m, isStreaming: false } : m
+        ));
       }
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred while generating the reply.');
-      // Remove the optimistic user message if call failed
-      setMessages(prev => prev.filter(m => m.id !== userMsgId));
+      setMessages(prev => prev.filter(m => m.id !== userMsgId && m.id !== modelMsgId));
     } finally {
       setIsLoading(false);
     }
@@ -660,6 +722,27 @@ export default function ChatPage() {
                 >
                   📊 Dashboard
                 </button>
+                <button 
+                  onClick={() => setActiveTab('diagnose')} 
+                  className={`mode-toggle-btn ${activeTab === 'diagnose' ? 'active' : ''}`}
+                  title="Crop Disease Diagnostics"
+                >
+                  🩺 Diagnose
+                </button>
+                <button 
+                  onClick={() => setActiveTab('diagnose-history')} 
+                  className={`mode-toggle-btn ${activeTab === 'diagnose-history' ? 'active' : ''}`}
+                  title="Diagnostics Archives"
+                >
+                  🗂 Archive
+                </button>
+                <button 
+                  onClick={() => setActiveTab('admin')} 
+                  className={`mode-toggle-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                  title="Admin Telemetry Panel"
+                >
+                  🛰 Admin
+                </button>
               </div>
             )}
             <div className="mode-toggle-group">
@@ -678,6 +761,7 @@ export default function ChatPage() {
                 Voice Only
               </button>
             </div>
+            <NotificationCenter />
             <div className="status-badge">
               <span className="status-dot"></span>
               <span>Online</span>
@@ -725,6 +809,12 @@ export default function ChatPage() {
             onDiseaseSearch={handleDiseaseSearch} 
             onPromptClick={handlePromptClick} 
           />
+        ) : activeTab === 'diagnose' ? (
+          <DiseaseDetection />
+        ) : activeTab === 'diagnose-history' ? (
+          <DiseaseHistory />
+        ) : activeTab === 'admin' ? (
+          <AdminDashboard />
         ) : assistantMode === 'voice' ? (
           <section className="voice-only-screen">
             <div className="voice-only-avatar-container">
