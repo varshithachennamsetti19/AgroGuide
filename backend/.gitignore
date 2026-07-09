@@ -1,3 +1,24 @@
+# Node
 node_modules/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment
 .env
+.env.*
+*.env
+
+# Coverage
+coverage/
+.pytest_cache/
+
+# Logs
 *.log
+
+# OS
+.DS_Store
+Thumbs.db

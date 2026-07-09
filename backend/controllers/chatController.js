@@ -1,4 +1,4 @@
-import { generateReply, generateWeatherSummary, generateReplyStream } from '../services/gemini.js';
+import { generateReply, generateWeatherSummary, generateReplyStream } from '../services/llmProvider.js';
 import Chat from '../models/Chat.js';
 import { detectIntent, extractCity, detectQueryTime, isSeasonalQuery, extractState } from '../services/intentRouter.js';
 import { retrieve } from '../rag/retriever.js';
@@ -120,7 +120,7 @@ Weather Conditions: ${JSON.stringify(lastDiagnosis.weather)}
 Explain the reasoning behind this diagnosis in ${promptLanguage}. Discuss the visible symptoms (leaf spots, spores, lesions), weather factors (e.g. humidity/wetness causing blast/blight), and trusted sources used to determine this. Keep it to 3-4 clear sentences.
 `;
 
-          const explanationRes = await generateReply(explanationPrompt, [], "");
+          const explanationRes = await generateReply(explanationPrompt, [], "", 'disease');
           const reply = explanationRes.text;
 
           const savedChat = await Chat.create({
@@ -173,7 +173,7 @@ Context:
 ${contextText}
 `;
 
-        const explanationRes = await generateReply(explanationPrompt, [], "");
+        const explanationRes = await generateReply(explanationPrompt, [], "", 'disease');
         const reply = explanationRes.text;
 
         const savedChat = await Chat.create({
@@ -427,7 +427,7 @@ ${contextText}
         }
 
         const augmentedContext = `You are discussing the seasonal rainfall forecast for ${state}. Ground your reply in this data:\n${context}`;
-        const replyRes = await generateReply(message, history, augmentedContext);
+        const replyRes = await generateReply(message, history, augmentedContext, 'general');
         let reply = replyRes.text;
 
         const validOut = validateOutput(reply, message);
@@ -671,7 +671,7 @@ Farmer Profile Context:
       } else {
         recordCacheMiss();
         console.log(`🔍 RAG: Fetching context for: "${augmentedQuery}"`);
-        const retrievedChunks = await retrieve(augmentedQuery, 3);
+        const retrievedChunks = await retrieve(augmentedQuery, 3, dbUser?.primaryCrop);
         const hasEnoughContext = retrievedChunks && retrievedChunks.length > 0 && 
                                  retrievedChunks.some(chunk => chunk.score >= 0.5);
 
@@ -730,8 +730,9 @@ Farmer Profile Context:
       context ? `${context}` : ''
     ].filter(Boolean).join('\n\n');
 
-    // Generate reply using Gemini service
-    const geminiRes = await generateReply(message, history, fullContext);
+    // Generate reply using LLM provider service
+    const taskType = (intent === 'DISEASE_QUERY' || intent === 'PEST_QUERY') ? 'disease' : (language && language !== 'en-US' ? 'translation' : 'general');
+    const geminiRes = await generateReply(message, history, fullContext, taskType);
     let reply = geminiRes.text;
     let confidence = geminiRes.confidence;
 
@@ -1008,7 +1009,7 @@ Farmer Profile:
         context = cachedRAG.context;
         fetchedSources = cachedRAG.sources || [];
       } else {
-        const retrievedChunks = await retrieve(augmentedQuery, 3);
+        const retrievedChunks = await retrieve(augmentedQuery, 3, dbUser?.primaryCrop);
         const hasEnoughContext = retrievedChunks && retrievedChunks.length > 0 && 
                                  retrievedChunks.some(chunk => chunk.score >= 0.5);
 
@@ -1054,8 +1055,9 @@ Farmer Profile:
 
     const fullContext = [farmerProfileContext, context].filter(Boolean).join('\n\n');
 
-    // Call Gemini streaming API (Part 5)
-    const resultStream = await generateReplyStream(message, history, fullContext);
+    // Call LLM streaming API
+    const taskType = (intent === 'DISEASE_QUERY' || intent === 'PEST_QUERY') ? 'disease' : (language && language !== 'en-US' ? 'translation' : 'general');
+    const resultStream = await generateReplyStream(message, history, fullContext, taskType);
     let fullText = '';
 
     for await (const chunk of resultStream.stream) {

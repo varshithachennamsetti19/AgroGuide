@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import CameraCapture from '../components/CameraCapture';
 import DiseaseReport from '../components/DiseaseReport';
-import { analyzeVisionImage } from '../services/api';
+import DiseaseStatistics from '../components/DiseaseStatistics';
+import { analyzeVisionImage, getVisionStatistics } from '../services/api';
 import { Camera, Image, ArrowLeft, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function DiseaseDetection() {
@@ -11,6 +12,20 @@ export default function DiseaseDetection() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null); // { success, analysis, explanation, weatherWarning, insuranceScheme }
+  const [stats, setStats] = useState(null);
+
+  const fetchStats = async () => {
+    try {
+      const data = await getVisionStatistics();
+      setStats(data);
+    } catch (err) {
+      console.warn('Failed to load diagnosis statistics:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, [report]);
 
   const handleUploadSuccess = async (filePath, fileUrl) => {
     setImageInfo({ filePath, fileUrl });
@@ -221,6 +236,16 @@ export default function DiseaseDetection() {
             insuranceScheme={report.insuranceScheme}
             imageUrl={imageInfo?.fileUrl}
           />
+        </div>
+      )}
+
+      {/* Show Statistics panel below uploader (Part 10) */}
+      {!imageInfo && !analyzing && !error && stats && stats.totalDiagnoses > 0 && (
+        <div style={{ marginTop: '40px', borderTop: '1px solid var(--border-light)', paddingTop: '24px' }}>
+          <h3 style={{ fontSize: '1rem', color: '#fff', marginBottom: '16px', fontWeight: 'bold' }}>
+            📊 Diagnostic Overview Statistics
+          </h3>
+          <DiseaseStatistics stats={stats} />
         </div>
       )}
     </div>

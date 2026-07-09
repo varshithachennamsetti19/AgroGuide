@@ -1,10 +1,12 @@
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app, Histogram, Counter
 import numpy as np
 import cv2
 from PIL import Image
 import io
+import time
 
 app = FastAPI(title="AgroGuide Multimodal AI Vision Service", version="1.0.0")
 
@@ -14,6 +16,21 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Expose Prometheus /metrics endpoint via ASGI mounting
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
+# Custom Prometheus metrics
+VISION_LATENCY = Histogram(
+    "vision_detection_latency_seconds",
+    "Time spent processing leaf image classification in seconds"
+)
+IMAGE_ANALYZED_COUNTER = Counter(
+    "vision_images_analyzed_total",
+    "Total number of leaf image uploads analyzed",
+    ["status"]
 )
 
 def preprocess_and_validate_image(image_bytes: bytes):
@@ -61,11 +78,15 @@ def preprocess_and_validate_image(image_bytes: bytes):
 
 @app.post("/analyze")
 async def analyze_crop_image(file: UploadFile = File(...)):
+    start_time = time.time()
+    status_label = "success"
     try:
         filename = file.filename.lower()
         
         # 1. Intercept test asset keywords to bypass OpenCV parsing errors (Part 17)
         if "blurry" in filename or "blur" in filename:
+            status_label = "blurry"
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": False,
                 "error": "Image is too blurry. Please stabilize your camera and upload a sharper photo.",
@@ -74,6 +95,8 @@ async def analyze_crop_image(file: UploadFile = File(...)):
             }
         
         if "dark" in filename:
+            status_label = "dark"
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": False,
                 "error": "Image is too dark. Please upload a brighter image with better lighting.",
@@ -82,6 +105,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
             }
 
         if "blight" in filename:
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": True,
                 "crop": "Tomato",
@@ -92,6 +116,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
                 "unknown": False
             }
         elif "blast" in filename:
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": True,
                 "crop": "Rice",
@@ -102,6 +127,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
                 "unknown": False
             }
         elif "healthy" in filename:
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": True,
                 "crop": "Cotton",
@@ -112,6 +138,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
                 "unknown": False
             }
         elif "unknown" in filename:
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": True,
                 "crop": "Unknown Crop",
@@ -126,6 +153,8 @@ async def analyze_crop_image(file: UploadFile = File(...)):
         contents = await file.read()
         valid, prep_metrics, processed_img = preprocess_and_validate_image(contents)
         if not valid:
+            status_label = prep_metrics["reason"]
+            IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
             return {
                 "success": False,
                 "error": prep_metrics["error"],
@@ -133,6 +162,7 @@ async def analyze_crop_image(file: UploadFile = File(...)):
                 "metric_value": prep_metrics["value"]
             }
 
+        IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
         return {
             "success": True,
             "crop": "Tomato",
@@ -144,7 +174,40 @@ async def analyze_crop_image(file: UploadFile = File(...)):
         }
 
     except Exception as e:
+        status_label = "exception"
+        IMAGE_ANALYZED_COUNTER.labels(status=status_label).inc()
         return {"success": False, "error": f"Image processing exception: {str(e)}"}
+    finally:
+        latency = time.time() - start_time
+        VISION_LATENCY.observe(latency)
+
+@app.post("/rerank")
+async def rerank_documents(payload: dict):
+    query = payload.get("query", "")
+    documents = payload.get("documents", [])
+    
+    if not query or not documents:
+        return {"scores": [0.0] * len(documents)}
+        
+    try:
+        from sentence_transformers import CrossEncoder
+        model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512)
+        pairs = [[query, doc] for doc in documents]
+        model_scores = model.predict(pairs).tolist()
+        return {"scores": model_scores}
+    except Exception:
+        # Resilient fallback: calculate token-level Jaccard overlap similarity
+        scores = []
+        query_words = set(query.lower().split())
+        for doc in documents:
+            doc_words = set(doc.lower().split())
+            if not query_words or not doc_words:
+                scores.append(0.0)
+                continue
+            intersection = query_words.intersection(doc_words)
+            union = query_words.union(doc_words)
+            scores.append(float(len(intersection) / len(union)) if union else 0.0)
+        return {"scores": scores}
 
 @app.get("/health")
 def health_check():

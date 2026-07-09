@@ -1,0 +1,174 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "AgroGuide AI Voice Assistant API Specification",
+    "description": "Production API endpoints for authentication, RAG chat assistant, weather intelligence, crop disease diagnostics, and admin telemetries.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "API Gateway Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "token",
+        "description": "JWT authentication token stored securely in cookies."
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new farmer account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password", "phoneNumber"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "phoneNumber": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Farmer account registered successfully" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate farmer and set session cookie",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, credentials returned" }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "summary": "Submit voice/text request to Multilingual Assistant router",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message"],
+                "properties": {
+                  "message": { "type": "string" },
+                  "latitude": { "type": "number" },
+                  "longitude": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reply and cached response payload" }
+        }
+      }
+    },
+    "/weather/current": {
+      "get": {
+        "summary": "Fetch live weather intelligence metrics",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          { "name": "lat", "in": "query", "required": true, "schema": { "type": "number" } },
+          { "name": "lon", "in": "query", "required": true, "schema": { "type": "number" } }
+        ],
+        "responses": {
+          "200": { "description": "Weather conditions and agricultural warnings" }
+        }
+      }
+    },
+    "/vision/upload": {
+      "post": {
+        "summary": "Upload diagnostic plant photo",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Local/Cloud relative upload path URL" }
+        }
+      }
+    },
+    "/vision/analyze": {
+      "post": {
+        "summary": "Trigger multimodal OpenCV/YOLO diagnosis analysis",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["imagePath"],
+                "properties": {
+                  "imagePath": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Classification result and organic/chemical controls report" }
+        }
+      }
+    },
+    "/vision/history": {
+      "get": {
+        "summary": "Fetch user diagnostics scan archives list",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": { "description": "List of user historical scans" }
+        }
+      }
+    },
+    "/admin/metrics": {
+      "get": {
+        "summary": "Get admin system telemetry metrics",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": { "description": "System telemetry, diagnostics stats, and blocked queries" }
+        }
+      }
+    }
+  }
+}

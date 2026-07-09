@@ -133,3 +133,12 @@ export async function cacheClear() {
 export function getRedisStatus() {
   return isRedisAvailable;
 }
+
+/**
+ * Returns the raw ioredis connection client instance
+ * @returns {Redis|null}
+ */
+export function getRedisClient() {
+  return redis;
+}
+

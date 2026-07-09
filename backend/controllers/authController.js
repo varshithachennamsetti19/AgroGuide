@@ -12,7 +12,7 @@ const sendTokenResponse = (user, statusCode, res) => {
     httpOnly: true,
     expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
   };
 
   res
@@ -124,7 +124,7 @@ export const logout = async (req, res) => {
       httpOnly: true,
       expires: new Date(Date.now() + 5 * 1000), // expires in 5 seconds
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
     });
 
     res.status(200).json({

@@ -7,7 +7,7 @@ import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Configure local uploads storage (Part 14)
+// Configure local uploads storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = 'uploads';
@@ -22,13 +22,36 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+// Enforce security checks on file uploads (mimetypes and sizes)
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Max 5MB file sizes
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('Only JPEG, PNG, and WebP images are allowed.'));
+    }
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    if (!allowedExtensions.includes(ext)) {
+      return cb(new Error('Invalid file extension. Only JPG, JPEG, PNG, and WebP are allowed.'));
+    }
+    cb(null, true);
+  }
+});
 
 // Apply auth protection middleware
 router.use(protect);
 
-// POST /api/vision/upload - Store uploaded file on local disk
-router.post('/upload', upload.single('image'), uploadImage);
+// POST /api/vision/upload - Store uploaded file on local disk or cloud
+router.post('/upload', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+    next();
+  });
+}, uploadImage);
 
 // POST /api/vision/analyze - Proxy to FastAPI, ground with RAG/Weather & Gemini
 router.post('/analyze', analyzeImage);

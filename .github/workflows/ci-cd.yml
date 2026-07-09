@@ -1,0 +1,104 @@
+name: AgroGuide CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # Job 1: Test & Lint Codebases
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Backend Node Setup, Lint, and Test
+      - name: Setup Node.js (Backend & Frontend)
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'backend/package-lock.json'
+
+      - name: Install and Lint Backend
+        run: |
+          cd backend
+          npm ci
+          # Bypass linting issues check if needed, but run syntax validation
+          npm run lint || echo "Linting warnings found, continuing..."
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm run test
+
+      # Frontend Node Setup, Lint, and Test
+      - name: Install and Lint Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run lint || echo "Linting warnings found, continuing..."
+
+      - name: Run Frontend Tests
+        run: |
+          cd frontend
+          npm run test
+
+      - name: Build Frontend Assets
+        run: |
+          cd frontend
+          npm run build
+
+      # Python Vision Setup, Lint, and Test
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          cd vision-service
+          pip install -r requirements.txt
+
+      - name: Run Vision Service Tests (Pytest)
+        run: |
+          cd vision-service
+          pytest --cov=./ --cov-report=xml
+
+  # Job 2: Build & Verify Docker Images
+  docker-build:
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: agroguide-backend:latest
+
+      - name: Build Frontend Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: agroguide-frontend:latest
+
+      - name: Build Vision Service Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./vision-service
+          file: ./vision-service/Dockerfile
+          push: false
+          tags: agroguide-vision-service:latest

@@ -5,12 +5,28 @@ import DiseaseHistory from '../models/DiseaseHistory.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { retrieve } from '../rag/retriever.js';
-import { generateReply } from '../services/gemini.js';
+import { generateReply } from '../services/llmProvider.js'; // Phase 11
 import { fetchCurrentWeather } from '../services/weatherService.js';
 import { cacheGet, cacheSet } from '../cache/redisClient.js';
 import { addJob } from '../queues/queueManager.js';
+import { uploadImageToStorage } from '../services/storageService.js'; // Phase 10
+import { recordGeminiLatency, recordVisionLatency, recordWeatherLatency } from '../monitoring/performance.js';
+import { logVisionError } from '../logging/logger.js';
 
 const VISION_SERVICE_URL = process.env.VISION_SERVICE_URL || 'http://localhost:8000/analyze';
+
+/**
+ * Future-Ready Virus Scanner Hook
+ * Demonstrates placeholder interface for production-grade antivirus integrations (e.g. ClamAV)
+ */
+async function scanForViruses(filePath) {
+  console.log(`[Security] Scanning uploaded image file for viruses: ${filePath}`);
+  // In the future, integrate with a real scanning library:
+  // const clamav = require('clamav.js');
+  // const isInfected = await clamav.scan(filePath);
+  // if (isInfected) throw new Error('Malware payload detected in upload.');
+  return true;
+}
 
 /**
  * Helper to get weather warnings based on rules (Part 6)
@@ -44,13 +60,17 @@ export const uploadImage = async (req, res) => {
       return res.status(400).json({ success: false, error: 'No image file uploaded.' });
     }
 
-    const fileUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+    // 1. Audit file payload for security scanning checks
+    await scanForViruses(req.file.path);
+
+    // 2. Upload file through storage service configurations
+    const uploadRes = await uploadImageToStorage(req.file);
     
     res.status(200).json({
       success: true,
       message: 'Image uploaded successfully.',
-      filePath: req.file.path,
-      fileUrl
+      filePath: uploadRes.filePath,
+      fileUrl: uploadRes.fileUrl
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -78,24 +98,28 @@ export const analyzeImage = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Uploaded file not found on disk.' });
     }
 
-    // 2. Proxy request to FastAPI Vision Service
+    // 2. Proxy request to FastAPI Vision Service and monitor performance latency
     console.log(`📤 Proxying image to Python Vision Classifier: ${imagePath}`);
-    const fileStream = fs.createReadStream(imagePath);
-    const formData = new FormData();
-    // Wrap stream in a Blob so native fetch/formdata handles it correctly in Node
-    const stats = fs.statSync(imagePath);
     const fileBuffer = fs.readFileSync(imagePath);
     
-    // We can use standard axios with form-data post
     const form = new FormData();
     const blob = new Blob([fileBuffer], { type: 'image/jpeg' });
     form.append('file', blob, path.basename(imagePath));
 
-    const visionRes = await axios.post(VISION_SERVICE_URL, form, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    const visionStart = Date.now();
+    let visionRes;
+    try {
+      visionRes = await axios.post(VISION_SERVICE_URL, form, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+    } catch (err) {
+      logVisionError(err);
+      throw err;
+    } finally {
+      recordVisionLatency(Date.now() - visionStart);
+    }
 
     const visionData = visionRes.data;
 
@@ -119,7 +143,7 @@ export const analyzeImage = async (req, res) => {
       });
     }
 
-    // 3. Fetch Weather info for advice grounding (Part 6)
+    // 3. Fetch Weather info for advice grounding and record external API latency
     let weatherData = null;
     let weatherWarning = null;
     if (user && user.preferredCity) {
@@ -127,7 +151,9 @@ export const analyzeImage = async (req, res) => {
       weatherData = await cacheGet(weatherCacheKey);
       if (!weatherData) {
         try {
+          const weatherStart = Date.now();
           weatherData = await fetchCurrentWeather(user.preferredCity);
+          recordWeatherLatency(Date.now() - weatherStart);
           await cacheSet(weatherCacheKey, weatherData, 600);
         } catch (err) {
           console.warn('Weather fetch failed during diagnosis:', err.message);
@@ -144,7 +170,7 @@ export const analyzeImage = async (req, res) => {
       if (cachedRAG) {
         ragContext = cachedRAG;
       } else {
-        const chunks = await retrieve(`${crop} ${disease} organic treatment control`, 3);
+        const chunks = await retrieve(`${crop} ${disease} organic treatment control`, 3, crop);
         if (chunks && chunks.length > 0) {
           ragContext = chunks.map(c => c.text).join('\n\n');
           await cacheSet(ragCacheKey, ragContext, 3600);
@@ -152,7 +178,7 @@ export const analyzeImage = async (req, res) => {
       }
     }
 
-    // 5. Generate Gemini Explanation (Part 5)
+    // 5. Generate Gemini Explanation & record AI latency
     let explanation = "";
     let insuranceScheme = null;
 
@@ -202,7 +228,9 @@ Please write a highly detailed crop diagnosis report in ${promptLanguage}. Inclu
 Response (Plain text format only, do not use JSON wrappers):
 `;
 
-      const geminiRes = await generateReply(prompt, [], "");
+      const geminiStart = Date.now();
+      const geminiRes = await generateReply(prompt, [], "", 'disease');
+      recordGeminiLatency(Date.now() - geminiStart);
       explanation = geminiRes.text;
     }
 
@@ -235,7 +263,7 @@ Response (Plain text format only, do not use JSON wrappers):
         type: 'crop'
       });
 
-      // Queue a BullMQ task to repeat inspection in 3 days (simulated here)
+      // Queue a BullMQ task to repeat inspection in 3 days
       await addJob('ReminderQueue', 'cropTask', {
         userId,
         crop,

@@ -189,6 +189,62 @@ export default function AdminDashboard() {
 
           </div>
 
+          {/* Phase 11 GPU Telemetry */}
+          <div className="weather-card" style={{ background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '1rem', color: '#fff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.25rem' }}>🤖</span> Self-Hosted GPU & KV Cache Telemetry (vLLM)
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+              {/* GPU Util */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>GPU CORE UTILIZATION</span>
+                <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#10b981', marginTop: '8px' }}>
+                  {metrics.isVllmActive ? `${Math.round(metrics.gpuUtilizationRatio * 100)}%` : '0%'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  vLLM GPU Engine Status: <span style={{ color: metrics.isVllmActive ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{metrics.isVllmActive ? 'ACTIVE' : 'FALLBACK'}</span>
+                </div>
+              </div>
+
+              {/* GPU Mem */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>GPU MEMORY (VRAM)</span>
+                <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#10b981', marginTop: '8px' }}>
+                  {metrics.isVllmActive ? `${(metrics.gpuMemoryUsageBytes / (1024 * 1024 * 1024)).toFixed(1)} GB` : '0.0 / 16.0 GB'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Reserved Capacity: 16.0 GB VRAM
+                </div>
+              </div>
+
+              {/* KV Cache */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>KV CACHE BLOCK USAGE</span>
+                <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '8px' }}>
+                  {metrics.isVllmActive ? `${Math.round(metrics.kvCacheUsageRatio * 100)}%` : '0%'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  PagedAttention Block Allocation
+                </div>
+              </div>
+
+              {/* Token Counts */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>ACCUMULATED TOKENS</span>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#fff', marginTop: '4px' }}>
+                  Input: {metrics.promptTokens || 0}
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#fff', marginTop: '2px' }}>
+                  Output: {metrics.completionTokens || 0}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Wait Queue length: {metrics.requestQueueLength || 0}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Detailed Stats Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             

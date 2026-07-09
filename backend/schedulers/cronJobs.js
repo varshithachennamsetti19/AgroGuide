@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import { addJob } from '../queues/queueManager.js';
 import User from '../models/User.js';
 import { logApiError } from '../logging/logger.js';
+import { startBackupScheduler } from './backup.js'; // Phase 10
 
 // Cron job instances list
 const activeCrons = [];
@@ -92,6 +93,13 @@ export function startSchedulers() {
     }
   });
   activeCrons.push(recommendationCron);
+
+  // 5. Automated backups (Phase 10)
+  try {
+    startBackupScheduler();
+  } catch (err) {
+    console.error('Failed to initialize backups scheduler:', err.message);
+  }
 }
 
 /**

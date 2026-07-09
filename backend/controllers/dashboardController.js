@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import User from '../models/User.js';
 import { fetchCurrentWeather } from '../services/weatherService.js';
-import { generateDailyFarmOverview } from '../services/gemini.js';
+import { generateDailyFarmOverview } from '../services/llmProvider.js';
 
 /**
  * @desc    Get aggregated personalized dashboard status
